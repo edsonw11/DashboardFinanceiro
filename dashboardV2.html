@@ -1152,44 +1152,67 @@
             renderTable(sortedData, totalReceitas); 
         }
         
-        // --- FUNÇÕES DE GRÁFICOS (mantidas) ---
+        // --- FUNÇÕES DE GRÁFICOS (MODIFICADA: renderMonthlyEvolutionChart) ---
         
         function renderMonthlyEvolutionChart() {
-            // Agrupa todos os gastos (excluindo anuais) por mês
-            const monthlyTotals = Array(12).fill(0); 
+            // 1. Agrupa Gasto Total Mensal (Projetado)
+            const monthlyTotalTotals = Array(12).fill(0); 
+            // 2. Agrupa Gasto Pago Mensal
+            const monthlyPaidTotals = Array(12).fill(0); 
             
             rawData.forEach(d => {
                 const mes = parseInt(d.mes);
                 const recorrencia = String(d.recorrencia || '').toLowerCase().trim();
 
                 if (mes >= 1 && mes <= 12 && recorrencia !== 'anual') {
-                    monthlyTotals[mes - 1] += d.valor;
+                    // Total Projetado (Linha Vermelha)
+                    monthlyTotalTotals[mes - 1] += d.valor;
+                    
+                    // Total Pago (Linha Verde)
+                    if (String(d.status || '').toLowerCase().trim() === 'pago') {
+                        monthlyPaidTotals[mes - 1] += d.valor;
+                    }
                 }
             });
             
             const labels = MONTH_NAMES_SHORT.slice(0, 12); 
 
-            const trace = {
+            // Trace 1: Gasto Total Projetado (Vermelho)
+            const traceTotal = {
                 x: labels,
-                y: monthlyTotals,
+                y: monthlyTotalTotals,
                 mode: 'lines+markers',
                 type: 'scatter',
-                name: 'Gastos Mensais',
+                name: 'Total Projetado',
                 line: { color: '#dc3545', width: 3 }, 
                 marker: { size: 10, color: '#dc3545', line: { width: 1, color: 'white' } },
-                hovertemplate: '<b>%{x}</b><br>Gastos: R$ %{y:,.2f}<extra></extra>'
+                hovertemplate: '<b>%{x}</b><br>Total Projetado: R$ %{y:,.2f}<extra></extra>'
+            };
+            
+            // Trace 2: Gasto Total Pago (Verde)
+            const tracePaid = {
+                x: labels,
+                y: monthlyPaidTotals,
+                mode: 'lines+markers',
+                type: 'scatter',
+                name: 'Total Pago',
+                line: { color: '#28a745', width: 3, dash: 'dot' }, 
+                marker: { size: 10, color: '#28a745', line: { width: 1, color: 'white' } },
+                hovertemplate: '<b>%{x}</b><br>Total Pago: R$ %{y:,.2f}<extra></extra>'
             };
 
             const layout = {
                 title: false, 
                 height: 350,
                 xaxis: { title: 'Mês', tickvals: labels, ticktext: labels },
-                yaxis: { title: 'Valor Gasto (R$)', tickformat: '$,.0f' },
+                yaxis: { title: 'Valor (R$)', tickformat: '$,.0f' },
                 margin: { t: 20, b: 50, l: 60, r: 20 },
-                hovermode: 'x unified'
+                hovermode: 'x unified',
+                legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 } 
             };
 
-            Plotly.react('grafico-evolucao-mensal', [trace], layout, {displayModeBar: false});
+            // Renderiza ambas as linhas
+            Plotly.react('grafico-evolucao-mensal', [traceTotal, tracePaid], layout, {displayModeBar: false});
         }
 
         function renderCategoryProportionChart(data) {
