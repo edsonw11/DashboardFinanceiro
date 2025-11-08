@@ -1,0 +1,1655 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Gestão Financeira Completa</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        header {
+            background-color: #dc3545;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            overflow: visible; 
+        }
+        .controls {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 20px;
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .controls button {
+            padding: 10px 15px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-left: 10px;
+            transition: background-color 0.2s;
+        }
+        .controls .save-all-btn { 
+            background-color: #007bff; 
+            font-weight: bold;
+        }
+        .controls .save-all-btn:hover { 
+            background-color: #0056b3; 
+        }
+        .controls .import-btn { background-color: #28a745; }
+        .controls .import-btn:hover { background-color: #218838; }
+
+        /* --- GRID PRINCIPAL 2 COLUNAS (Receitas e Saldo) --- */
+        .main-two-col-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr; 
+            gap: 20px;
+            margin-bottom: 20px;
+            align-items: start; 
+        }
+        
+        /* Contêiner de Receitas - Altura fixa e Flexbox */
+        #revenue-container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-height: 450px; 
+            overflow: hidden; 
+            display: flex; 
+            flex-direction: column; 
+        }
+
+        .revenue-summary {
+            background-color: #f8f8f8;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            text-align: center;
+            margin-bottom: 15px; 
+            flex-shrink: 0;
+        }
+        
+        /* COR: COR DO VALOR DA RECEITA */
+        .revenue-summary .revenue-value {
+            font-size: 2.5em; 
+            font-weight: bold;
+            color: #28a745; 
+            margin-top: 5px;
+        }
+        
+        #revenue-container h2 {
+            flex-shrink: 0;
+            margin-top: 0;
+        }
+
+        #revenue-container .chart-box {
+            flex-grow: 1; 
+            display: flex; 
+            flex-direction: column; 
+            padding: 0;
+            box-shadow: none; 
+            margin: 0;
+        }
+
+        /* Formulários de Adição (Receitas e Despesas) */
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr) 100px;
+            gap: 15px;
+            align-items: end;
+        }
+        
+        #add-revenue-form {
+            grid-template-columns: repeat(12, 1fr) auto; 
+            gap: 10px;
+            flex-shrink: 0; 
+            margin-bottom: 15px;
+        }
+
+        .form-grid label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .form-grid input, .form-grid select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        
+        .form-grid select {
+            padding: 9px; 
+        }
+
+        #add-expense-form {
+            grid-template-columns: repeat(7, 1fr); 
+            gap: 15px;
+        }
+        
+        #add-expense-form button[type="submit"] {
+            grid-column: 7 / 8;
+            padding: 10px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            background-color: #dc3545; 
+        }
+        
+        /* Permite que a lista role e ocupe o espaço restante */
+        #receitas-list {
+            overflow-y: auto; 
+            padding: 0 10px;
+            flex-grow: 1; 
+            margin-bottom: 10px;
+        }
+
+        /* Painéis de Totais: 6 Colunas */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr); 
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .summary-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-self: stretch; 
+        }
+        
+        /* --- ESTILO DOS PAINÉIS DE TOTAIS --- */
+        .summary-box.total-mensal-box { border-top: 5px solid #dc3545; }
+        .summary-box.total-pago { border-top: 5px solid #28a745; }
+        .summary-box.total-cartao { border-top: 5px solid #007bff; }
+        .summary-box.total-debito { border-top: 5px solid #ffc107; }
+        .summary-box.total-pix { border-top: 5px solid #6f42c1; }
+        .summary-box.total-outros { border-top: 5px solid #ff9800; }
+        
+        .summary-box .summary-mensal { font-size: 2.5em; font-weight: bold; color: #dc3545; }
+        .summary-box .summary-pago { font-size: 2.5em; font-weight: bold; color: #28a745; }
+        .summary-box .summary-cartao { font-size: 2.5em; font-weight: bold; color: #007bff; }
+        .summary-box .summary-debito { font-size: 2.5em; font-weight: bold; color: #ffc107; }
+        .summary-box .summary-pix { font-size: 2.5em; font-weight: bold; color: #6f42c1; }
+        .summary-box .summary-outros { font-size: 2.5em; font-weight: bold; color: #ff9800; }
+        
+        /* --- GRID PARA GRÁFICOS DE PIZZA (50/50) E GRÁFICO DE LINHA (FULL) --- */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr); 
+            gap: 20px;
+            margin-bottom: 20px;
+            overflow: visible; 
+            align-items: start; 
+        }
+
+        /* Contêineres de Gráfico e Tabela */
+        .chart-box, .table-box {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: visible; 
+            position: relative; 
+            z-index: 10; 
+            height: auto; 
+        }
+        
+        .table-box {
+            align-self: stretch; 
+            padding: 20px 20px 0 20px; 
+            overflow: visible; 
+            grid-column: 1 / 3;
+        }
+        
+        #tabela-gastos {
+            overflow-x: hidden; 
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        /* Classe para itens de largura total (2 colunas) */
+        .full-width-section-2col {
+             grid-column: 1 / 3; 
+        }
+        /* Classe para itens de largura total (1 coluna) - NOVO */
+        .full-width-section-1col {
+            grid-column: 1 / 3;
+            margin-bottom: 20px;
+        }
+
+        #add-expense-section {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            margin-bottom: 20px; 
+        }
+
+        h2 {
+            color: #dc3545;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            margin-top: 0;
+        }
+        
+        /* --- ESTILO DO ACORDION --- */
+        .accordion-item {
+            margin-bottom: 20px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .accordion-item summary {
+            padding: 20px;
+            cursor: pointer;
+            outline: none;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #6f42c1; 
+            border-bottom: 2px solid #eee;
+        }
+        .accordion-item .chart-content {
+             padding: 20px;
+        }
+        
+        /* Tabela */
+        #tabela-gastos table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        #tabela-gastos th, #tabela-gastos td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #tabela-gastos th {
+            background-color: #f2f2f2;
+            text-align: center;
+            cursor: pointer;
+            position: relative; 
+            top: 0;
+            z-index: 60; 
+        }
+        #tabela-gastos tbody tr:hover {
+            background-color: #fff3cd;
+        }
+        .status-pago {
+            background-color: #d4edda;
+            color: #155724;
+            text-decoration: line-through;
+        }
+        .status-pendente {
+            background-color: #f8d7da;
+            color: #721c24;
+            font-weight: bold;
+        }
+        .editable-cell {
+            cursor: pointer;
+            min-width: 50px;
+        }
+        .editable-input, .tipo-gasto-select, .cartao-select, .recorrencia-select {
+            border: 1px solid #aaa;
+            border-radius: 3px;
+            padding: 3px;
+            font-size: 13px;
+            background-color: white; 
+        }
+        .delete-btn {
+            background: none;
+            border: none;
+            color: #dc3545;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 0;
+        }
+        .percent-cell {
+            text-align: center;
+            font-weight: bold;
+        }
+        .status-toggle-span { 
+            cursor: pointer;
+            font-weight: bold;
+            display: block;
+            text-align: center;
+        }
+        
+        /* --- ESTILO PARA RODAPÉ FIXO --- */
+        #tabela-gastos tfoot th {
+            background-color: #ffe0b2; 
+            color: #e65100; 
+            font-size: 15px;
+            font-weight: bold;
+            text-align: right; 
+            border-top: 3px solid #e65100;
+            
+            position: relative; 
+            bottom: 0; 
+            z-index: 50; 
+        }
+        #tabela-gastos tfoot th:first-child {
+            text-align: left; 
+        }
+        
+        /* --- NOVO: Estilo para o Seletor de Mês --- */
+        .month-selector {
+            display: flex;
+            justify-content: space-around;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .month-selector button {
+            background: none;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            color: #555;
+            border-radius: 4px;
+            transition: background-color 0.2s, color 0.2s;
+        }
+        .month-selector button:hover {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        .month-selector button.active {
+            background-color: #dc3545; 
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>💵 Dashboard de Gestão Financeira Completa (Layout Otimizado)</h1>
+        <p>Edite campos clicando no texto ou use os menus suspensos. Importe/Exporte dados via CSV.</p>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+            <button class="save-all-btn" id="save-all-btn"> 
+                💾 Salvar Dados em CSV (24 Arquivos)
+            </button>
+            
+            <button class="import-btn" id="import-csv-btn">
+                📤 Importar Novo CSV
+            </button>
+             <input type="file" id="file-input" accept=".csv" multiple style="display: none;">
+        </div>
+        
+        <div class="main-two-col-grid">
+            
+            <div id="revenue-container">
+                <div class="revenue-summary">
+                    <h3 id="titulo-total-receitas">Total de Receitas (Mês Selecionado)</h3> <div class="revenue-value" id="total-receitas">R$ 0,00</div>
+                </div>
+                
+                <div class="chart-box">
+                    <h2>💰 Adicionar/Gerenciar Receitas</h2>
+                    <form id="add-revenue-form" class="form-grid">
+                        <div style="grid-column: span 4;"><label for="new-rev-fonte">Fonte:</label><input type="text" id="new-rev-fonte" required></div>
+                        <div style="grid-column: span 3;"><label for="new-rev-valor">Valor (R$):</label><input type="number" id="new-rev-valor" step="0.01" required></div>
+                        <div style="grid-column: span 2;"><label for="new-rev-status">Status:</label><select id="new-rev-status" required><option value="Recebido">Recebido</option><option value="Pendente">Pendente</option></select></div>
+                        <div style="grid-column: span 2;"><label for="new-rev-recorrencia">Recorrência:</label><select id="new-rev-recorrencia" required><option value="Mensal">Mensal</option><option value="Única">Única</option></select></div>
+                        <div style="grid-column: 13 / 14;"><label>&nbsp;</label><button type="submit" style="background-color: #28a745; color: white; border: none; padding: 10px 15px;">Adicionar Receita</button></div>
+                    </form>
+                    <div id="receitas-list">
+                        </div>
+                </div>
+            </div>
+            
+            <div class="summary-box" style="border-top: 5px solid #007bff; display: flex; flex-direction: column; justify-content: center; text-align: center;">
+                <h3 id="titulo-saldo-liquido" style="color: #007bff; margin-bottom: 10px;">Saldo Líquido (Mês)</h3> <div class="summary-value" id="saldo-liquido" style="font-size: 3em;">R$ 0,00</div>
+                
+                <hr style="width: 80%; border: 1px solid #eee;">
+                
+                <h3 id="titulo-total-gastos" style="color: #dc3545; margin-top: 20px; margin-bottom: 10px;">Total de Gastos (Mês Selecionado)</h3> <div class="summary-value summary-total" id="total-todos-meses" style="font-size: 2em; color: #dc3545;">R$ 0,00</div>
+            </div>
+            
+        </div>
+        
+        <hr>
+
+        <div id="add-expense-section">
+             <h2>➖ Adicionar Nova Despesa</h2>
+             <form id="add-expense-form" class="form-grid">
+                <div><label for="new-categoria">Categoria:</label><input type="text" id="new-categoria" required></div>
+                <div><label for="new-valor">Valor (R$):</label><input type="number" id="new-valor" step="0.01" required></div>
+                <div><label for="new-vencimento">Vencimento (Dia):</label><input type="number" id="new-vencimento" min="1" max="31" value="30" required></div>
+                
+                <div><label for="new-tipo">Tipo de Gasto:</label><select id="new-tipo" required><option value="Essencial">Essencial</option><option value="Nao Essencial">Não Essencial</option></select></div>
+                
+                <div>
+                    <label for="new-cartao">Tipo Pagamento:</label>
+                    <select id="new-cartao" required>
+                        <option value="Cartao">Cartão</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Debito Automatico">Débito Automático</option>
+                        <option value="Boleto">Boleto</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                
+                <div><label for="new-recorrencia">Recorrência:</label><select id="new-recorrencia" required><option value="Mensal">Mensal</option><option value="Anual">Anual</option></select></div>
+                <button type="submit">Adicionar Despesa</button>
+            </form>
+        </div>
+        
+        <div class="summary-grid">
+            <div class="summary-box total-mensal-box">
+                <h3>Total de Gastos Mensais</h3> 
+                <div class="summary-value summary-mensal" id="total-mensal">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-pago">
+                <h3>Total Pago (Mês)</h3> 
+                <div class="summary-value summary-pago" id="total-pago">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-cartao">
+                <h3>Total Cartão</h3> 
+                <div class="summary-value summary-cartao" id="total-cartao">R$ 0,00</div>
+            </div>
+            
+            <div class="summary-box total-debito">
+                <h3>Total em Débito</h3> 
+                <div class="summary-value summary-debito" id="total-debito">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-pix">
+                <h3>Total em Pix</h3> 
+                <div class="summary-value summary-pix" id="total-pix">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-outros">
+                 <h3>Total Outros</h3> 
+                 <div class="summary-value summary-outros" id="total-outros">R$ 0,00</div>
+            </div>
+        </div>
+        
+        <div class="chart-box full-width-section-1col">
+            <h2 id="titulo-evolucao-mensal">📈 Evolução de Gastos Mensais (Ano Atual)</h2>
+            <div id="grafico-evolucao-mensal"></div>
+        </div>
+        
+        <div class="chart-grid">
+            
+            <div class="chart-box">
+                <h2 id="titulo-essencial">Essencial vs. Não Essencial (Mês Selecionado)</h2> 
+                <div id="grafico-essencial"></div>
+            </div>
+            
+            <div class="chart-box">
+                <h2 style="color: #007bff;" id="titulo-pagamento">Meio de Pagamento (Mês Selecionado)</h2>
+                <div id="grafico-pagamento"></div>
+            </div>
+        </div>
+
+        <div class="chart-grid">
+            
+            <div class="table-box full-width-section-2col">
+                <h2>Controle de Contas</h2>
+                
+                <div id="month-selector" class="month-selector">
+                    </div>
+
+                <div id="tabela-gastos"></div>
+            </div>
+            
+            <div class="accordion-item full-width-section-2col">
+                <details>
+                    <summary>
+                        📊 Proporção por Categoria (Ranking - Clique para Expandir)
+                    </summary>
+                    <div class="chart-content">
+                        <div id="grafico-categoria"></div>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- VARIÁVEIS DE ESTADO ---
+        let rawData = []; // Armazena dados de despesas de TODOS os meses
+        let rawRevenues = []; // Armazena dados de receitas de TODOS os meses
+        let sortedData = [];
+        let totalFilesProcessed = 0;
+        let filesSuccessfullyLoaded = 0;
+        let totalMonthlyExpenses = 0; 
+        let totalReceivedRevenue = 0; // Total de receitas RECEBIDAS do MÊS SELECIONADO
+        
+        const today = new Date();
+        let currentMonth = today.getMonth() + 1; 
+        const CURRENT_YEAR = today.getFullYear(); 
+        const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+        const MONTH_NAMES_SHORT = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
+        // --- FIM VARIÁVEIS DE ESTADO ---
+
+        const EXPENSE_COLUMN_NAMES = {
+            'categoria': 'Categoria',
+            'vencimento': 'Vencimento (Dia do Mês)',
+            'valor': 'Valor (R$)',
+            'status': 'Status',
+            'recorrencia': 'Recorrência',
+            'tipo_gasto': 'Tipo de Gasto',
+            'observacao': 'Observação',
+            'cartao': 'Tipo Pagamento',
+            'mes': 'Mês' 
+        };
+        const REVENUE_COLUMN_NAMES = {
+            'fonte': 'Fonte',
+            'valor': 'Valor (R$)',
+            'status': 'Status',
+            'recorrencia': 'Recorrência',
+            'mes': 'Mês' // Adicionado coluna Mês para receitas
+        };
+
+        // --- INICIALIZAÇÃO ---
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('save-all-btn').addEventListener('click', saveAllData);
+            
+            const importButton = document.getElementById('import-csv-btn');
+            const fileInput = document.getElementById('file-input');
+            
+            if (importButton && fileInput) {
+                importButton.addEventListener('click', () => fileInput.click()); 
+                
+                fileInput.addEventListener('change', (event) => {
+                    rawData = []; 
+                    rawRevenues = [];
+                    processSelectedFiles(event.target.files);
+                });
+            }
+            
+            document.getElementById('add-expense-form').addEventListener('submit', addExpense);
+            document.getElementById('add-revenue-form').addEventListener('submit', addRevenue); 
+            
+            setupMonthSelector(); 
+            setupEventDelegation(); 
+            processData(); 
+        });
+        
+        // --- FUNÇÕES DE UTILIDADE ---
+        function cleanCurrency(value) {
+            if (typeof value === 'string' && value.trim() !== '') {
+                let cleanValue = value.replace(/R\$/g, '').replace(/\$/g, '').replace(/\./g, '').replace(/,/g, '.').trim();
+                return parseFloat(cleanValue) || 0; 
+            }
+            if (typeof value === 'number') return value;
+            return 0;
+        }
+        function formatCurrency(value) {
+             return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+        }
+        function formatPercent(value) {
+            if (typeof value === 'number' && !isNaN(value)) {
+                return value.toFixed(1) + '%';
+            }
+            return '0.0%';
+        }
+        function capitalize(s) {
+            if (typeof s !== 'string') return s;
+            s = s.toLowerCase().trim();
+            
+            if (s === 'nao essencial') return 'Não Essencial';
+            if (s === 'debito automatico' || s === 'debitoautomatico') return 'Débito Automático';
+            if (s === 'unica') return 'Única';
+            if (s === 'recebido') return 'Recebido';
+            if (s === 'pendente') return 'Pendente';
+            if (s === 'cartao') return 'Cartão';
+            if (s === 'pix') return 'Pix';
+            if (s === 'boleto') return 'Boleto';
+            if (s === 'outros') return 'Outros';
+            
+            return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+        }
+        
+        // --- FUNÇÃO PARA O SELETOR DE MÊS ---
+        function setupMonthSelector() {
+            const selectorDiv = document.getElementById('month-selector');
+            let html = '';
+            for (let i = 1; i <= 12; i++) {
+                const isActive = i === currentMonth ? 'active' : '';
+                // Usa a versão curta do nome do mês para os botões
+                html += `<button class="${isActive}" onclick="filterByMonth(${i})">${MONTH_NAMES_SHORT[i - 1]}</button>`;
+            }
+            selectorDiv.innerHTML = html;
+        }
+
+        function filterByMonth(month) {
+            if (month < 1 || month > 12 || month === currentMonth) return;
+            
+            currentMonth = month;
+            
+            const buttons = document.querySelectorAll('.month-selector button');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.month-selector button:nth-child(${month})`).classList.add('active');
+            
+            processData(); 
+        }
+        
+        // --- FUNÇÕES DE IMPORTAÇÃO (Simplificadas) ---
+        
+        function processSelectedFiles(files) {
+             if (files.length === 0) return;
+            
+            totalFilesProcessed = files.length;
+            filesSuccessfullyLoaded = 0;
+            let fileCount = 0;
+            let alertMessage = '';
+            
+            let nextIdExpense = rawData.length > 0 ? Math.max(...rawData.map(d => d.id)) + 1 : 0;
+            let nextIdRevenue = rawRevenues.length > 0 ? Math.max(...rawRevenues.map(d => d.id)) + 1 : 0;
+
+             Array.from(files).forEach(file => {
+                parseFile(file, (success, type, fileName, normalizedData) => {
+                    fileCount++;
+                    
+                    if (success) {
+                        filesSuccessfullyLoaded++;
+                        alertMessage += `- Arquivo: "${fileName}" (Tipo: ${type}) - CARREGADO\n`;
+                        
+                        if (type === 'Despesa') {
+                            normalizedData.forEach(d => { d.id = nextIdExpense++; });
+                            rawData.push(...normalizedData);
+                        } else if (type === 'Receita') {
+                            normalizedData.forEach(d => { d.id = nextIdRevenue++; });
+                            rawRevenues.push(...normalizedData);
+                        }
+                        
+                    } else {
+                         alertMessage += `- Arquivo: "${fileName}" - IGNORADO (Formato inválido ou cabeçalho incorreto)\n`;
+                    }
+
+                    if (fileCount === totalFilesProcessed) {
+                        if (filesSuccessfullyLoaded > 0) {
+                            alert(`Importação concluída. ${filesSuccessfullyLoaded} de ${totalFilesProcessed} arquivos CSV carregados com sucesso:\n\n${alertMessage}`);
+                        } else {
+                            alert(`Nenhum arquivo CSV compatível foi carregado. Certifique-se de que os arquivos têm o cabeçalho correto ("Categoria" ou "Fonte") e utilizam ponto e vírgula (;) como delimitador.`);
+                        }
+                        processData();
+                    }
+                });
+            });
+            document.getElementById('file-input').value = null;
+        }
+        
+        function parseFile(file, callback) {
+             Papa.parse(file, {
+                header: true,
+                dynamicTyping: false,
+                skipEmptyLines: true,
+                delimiter: ";", 
+                complete: (results) => {
+                    const data = results.data;
+                    if (data.length === 0) { 
+                        callback(false, null, file.name); 
+                        return; 
+                    }
+                    
+                    const normalizeHeader = (h) => h.toLowerCase().trim().replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                    const headerKeys = Object.keys(data[0]);
+                    
+                    const expenseExpectedKeys = Object.values(EXPENSE_COLUMN_NAMES).map(normalizeHeader);
+                    let isExpenseFile = expenseExpectedKeys.every(expected => headerKeys.some(h => normalizeHeader(h) === expected));
+                    
+                    const revenueExpectedKeys = Object.values(REVENUE_COLUMN_NAMES).map(normalizeHeader);
+                    // Deve conter o 'mes'
+                    let isRevenueFile = revenueExpectedKeys.every(expected => headerKeys.some(h => normalizeHeader(h) === expected));
+                    
+                    if (!isExpenseFile && !isRevenueFile) {
+                         callback(false, null, file.name);
+                         return;
+                    }
+                    
+                    const columnMap = isExpenseFile ? EXPENSE_COLUMN_NAMES : REVENUE_COLUMN_NAMES;
+                    const isExpense = isExpenseFile;
+
+                    const [normalizedData] = normalizeData(data, columnMap, isExpense);
+                    const type = isExpense ? 'Despesa' : 'Receita';
+                    
+                    callback(normalizedData.length > 0, type, file.name, normalizedData);
+                },
+                error: (error) => {
+                    console.error('Falha no carregamento de um arquivo.', file.name, error);
+                    callback(false, null, file.name);
+                }
+            });
+        }
+        
+        function normalizeData(data, columnMap, isExpense) {
+            let currentId = 0; // Vai ser sobrescrito ao adicionar ao rawData/rawRevenues
+            
+            const normalizedData = data.map((row) => {
+                const newRow = { id: currentId++ }; 
+                let hasValidValue = false;
+                
+                for (const internalKey in columnMap) {
+                    const expectedHeader = columnMap[internalKey];
+                    let value = row[expectedHeader];
+                    
+                    if (value === undefined) { 
+                        for (const header in row) { 
+                            if (header.trim() === expectedHeader.trim()) { value = row[header]; break; } 
+                            if (header.toLowerCase().replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "") === expectedHeader.toLowerCase().replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "")) { value = row[header]; break; }
+                        } 
+                    }
+                    
+                    if (internalKey === 'valor') {
+                        value = cleanCurrency(value);
+                        if (value > 0) hasValidValue = true;
+                    } else if (internalKey === 'vencimento') { 
+                        value = parseInt(value) || 30;
+                    } else if (internalKey === 'mes') { 
+                        value = parseInt(value) || currentMonth; // Default para o mês atual
+                    } else {
+                        value = value ? String(value).trim() : '';
+                    }
+                    
+                    if (isExpense) {
+                        if (['status', 'recorrencia', 'tipo_gasto', 'cartao'].includes(internalKey)) {
+                            value = value.toLowerCase().trim().replace(/ /g, '');
+                            if (internalKey === 'tipo_gasto') {
+                                value = value.includes('nao') || value.includes('não') ? 'nao essencial' : 'essencial';
+                            }
+                            if (internalKey === 'cartao') {
+                                if (value.includes('débito') || value.includes('debito')) value = 'debitoautomatico';
+                                if (value.includes('cartao')) value = 'cartao';
+                                if (value.includes('pix')) value = 'pix';
+                                if (value.includes('boleto')) value = 'boleto';
+                                if (value.includes('outros') || value === '') value = 'outros';
+                                
+                                if (!['cartao', 'pix', 'debitoautomatico', 'boleto', 'outros'].includes(value)) {
+                                     value = 'outros'; 
+                                }
+                            }
+                        }
+                    } else { // Receita
+                        if (['status', 'recorrencia'].includes(internalKey)) {
+                            value = value.toLowerCase().trim().replace(/ /g, '');
+                            if (internalKey === 'recorrencia') {
+                                value = value.includes('unica') ? 'unica' : value;
+                            }
+                        }
+                    }
+                    
+                    newRow[internalKey] = value;
+                }
+                
+                if (isExpense) {
+                    newRow.status = newRow.status || 'pendente';
+                    newRow.recorrencia = newRow.recorrencia || 'mensal';
+                    newRow.tipo_gasto = newRow.tipo_gasto || 'essencial'; 
+                    newRow.cartao = newRow.cartao || 'outros';
+                    newRow.mes = newRow.mes || currentMonth; 
+                } else { // Receita
+                    newRow.status = newRow.status || 'pendente';
+                    newRow.recorrencia = newRow.recorrencia || 'unica';
+                    newRow.mes = newRow.mes || currentMonth; 
+                }
+                
+                return hasValidValue ? newRow : null;
+            }).filter(row => row !== null);
+            
+            return [normalizedData, currentId];
+        }
+        
+        // --- FUNÇÕES DE INTERAÇÃO E ATUALIZAÇÃO ---
+        function setupEventDelegation() {
+            const container = document.querySelector('.container'); 
+            const tableContainer = document.getElementById('tabela-gastos');
+
+            container.addEventListener('change', function(event) {
+                const target = event.target;
+                
+                if (target.classList.contains('tipo-gasto-select') || 
+                    target.classList.contains('cartao-select') || 
+                    target.classList.contains('recorrencia-select')) {
+                    
+                    const id = target.getAttribute('data-id');
+                    const field = target.getAttribute('data-field');
+                    const newValue = target.value;
+                    
+                    updateRowData(id, field, newValue);
+                }
+            });
+
+            tableContainer.addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.classList.contains('delete-btn')) {
+                    const row = target.closest('tr');
+                    if (row) {
+                        deleteExpense(parseInt(row.getAttribute('data-id')));
+                    }
+                } else if (target.classList.contains('status-toggle-span')) { 
+                    const row = target.closest('tr');
+                    if (row) {
+                        togglePaymentStatus(parseInt(row.getAttribute('data-id')));
+                    }
+                }
+            });
+            
+            document.getElementById('receitas-list').addEventListener('click', (event) => {
+                const target = event.target;
+                if (target.classList.contains('delete-btn')) {
+                    // Busca o ID do elemento pai, pois o evento está na lista
+                    const listItem = target.closest('li');
+                    if (listItem) {
+                        deleteRevenue(parseInt(listItem.getAttribute('data-id')));
+                    }
+                } else if (target.closest('li') && target.tagName === 'SPAN' && target.getAttribute('data-id')) {
+                    toggleRevenueStatus(parseInt(target.getAttribute('data-id')));
+                }
+            });
+        }
+        
+        // --- CRUD Receita ---
+        function addRevenue(event) {
+            event.preventDefault();
+            const newRevenue = {
+                id: rawRevenues.length > 0 ? Math.max(...rawRevenues.map(d => d.id)) + 1 : 0, 
+                fonte: document.getElementById('new-rev-fonte').value,
+                valor: parseFloat(document.getElementById('new-rev-valor').value) || 0,
+                status: document.getElementById('new-rev-status').value.toLowerCase().trim(),
+                recorrencia: document.getElementById('new-rev-recorrencia').value.toLowerCase().trim().replace('ú', 'u'),
+                mes: currentMonth // Adiciona a receita ao mês selecionado
+            };
+            if (newRevenue.valor > 0) {
+                rawRevenues.push(newRevenue);
+                document.getElementById('add-revenue-form').reset();
+                processData(); 
+            } else { alert('O valor da receita deve ser maior que zero.'); }
+        }
+        
+        function deleteRevenue(id) {
+            rawRevenues = rawRevenues.filter(r => r.id !== id);
+            processData(); 
+        }
+        
+        function toggleRevenueStatus(id) {
+            const item = rawRevenues.find(r => r.id === id);
+            if (item) {
+                item.status = item.status.toLowerCase().trim() === 'recebido' ? 'pendente' : 'recebido';
+                processData(); 
+            }
+        }
+
+        // NOVO: Função para renderizar receitas FILTRADAS PELO MÊS
+        function renderRevenues(revenues) {
+            const listDiv = document.getElementById('receitas-list');
+            let html = '<ul style="list-style: none; padding: 0;">';
+            let currentTotalReceitas = 0; 
+            
+            if (revenues.length === 0) {
+                 listDiv.innerHTML = '<p style="text-align: center; color: #999; margin-top: 10px;">Nenhuma receita adicionada para este mês.</p>';
+                 document.getElementById('total-receitas').textContent = formatCurrency(0);
+                 totalReceivedRevenue = 0; 
+                 return;
+            }
+
+            revenues.forEach(r => { 
+                const isReceived = r.status.toLowerCase().trim() === 'recebido';
+                if (isReceived) {
+                    currentTotalReceitas += r.valor;
+                }
+                const statusColor = isReceived ? '#28a745' : '#ffc107';
+
+                html += `
+                    <li data-id="${r.id}" style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed #eee; padding: 5px 0;">
+                        <span style="font-weight: bold; width: 40%;">${r.fonte}</span>
+                        <span style="width: 25%; text-align: right;">${formatCurrency(r.valor)}</span>
+                        <span data-id="${r.id}" onclick="toggleRevenueStatus(${r.id})" style="width: 20%; text-align: center; color: ${statusColor}; cursor: pointer; font-weight: bold;">${capitalize(r.status)}</span>
+                        <button class="delete-btn" style="width: 10%;">🗑️</button>
+                    </li>
+                `;
+            });
+
+            html += '</ul>';
+            listDiv.innerHTML = html;
+            document.getElementById('total-receitas').textContent = formatCurrency(currentTotalReceitas);
+            totalReceivedRevenue = currentTotalReceitas; 
+        }
+        
+        // --- CRUD Despesa e Funções de Edição ---
+        function addExpense(event) {
+            event.preventDefault();
+            
+            const recorrencia = document.getElementById('new-recorrencia').value.toLowerCase().trim();
+            const tipoPagamento = document.getElementById('new-cartao').value; 
+            let tipo_gasto = document.getElementById('new-tipo').value.toLowerCase().trim();
+            
+            tipo_gasto = tipo_gasto.includes('nao') ? 'nao essencial' : 'essencial';
+
+            const newExpense = {
+                id: rawData.length > 0 ? Math.max(...rawData.map(d => d.id)) + 1 : 0, 
+                categoria: document.getElementById('new-categoria').value,
+                vencimento: parseInt(document.getElementById('new-vencimento').value) || 30,
+                valor: parseFloat(document.getElementById('new-valor').value) || 0,
+                status: 'pendente', 
+                recorrencia: recorrencia, 
+                tipo_gasto: tipo_gasto, 
+                observacao: 'Adicionado via dashboard',
+                cartao: tipoPagamento.toLowerCase().trim().replace(/ /g, ''),
+                mes: currentMonth 
+            };
+
+            if (newExpense.valor > 0) {
+                rawData.push(newExpense);
+                document.getElementById('add-expense-form').reset();
+                processData();
+            } else {
+                alert('O valor da despesa deve ser maior que zero.');
+            }
+        }
+        
+        function deleteExpense(id) {
+            if (confirm('Tem certeza que deseja excluir esta despesa permanentemente?')) {
+                rawData = rawData.filter(d => d.id !== id);
+                processData();
+            }
+        }
+
+        function togglePaymentStatus(id) {
+            const item = rawData.find(d => d.id === id);
+            if (item) {
+                const currentStatus = String(item.status || '').toLowerCase().trim();
+                item.status = currentStatus === 'pago' ? 'pendente' : 'pago';
+                
+                processData();
+            }
+        }
+        
+        function updateRowData(id, field, newValue) {
+            const itemId = parseInt(id); 
+            const item = rawData.find(d => d.id === itemId);
+            
+            if (item) {
+                let cleanedValue = String(newValue);
+
+                if (field === 'tipo_gasto') {
+                     cleanedValue = cleanedValue.toLowerCase().trim().includes('nao') ? 'nao essencial' : 'essencial';
+                    item[field] = cleanedValue;
+                } else if (field === 'valor' || field === 'vencimento') {
+                    item[field] = parseFloat(newValue) || 0;
+                } else if (field === 'status' || field === 'recorrencia') {
+                    item[field] = cleanedValue.toLowerCase().trim().replace(/ /g, '');
+                } else if (field === 'cartao') {
+                    item[field] = cleanedValue.toLowerCase().trim().replace(/ /g, '');
+                } else {
+                    item[field] = newValue;
+                }
+                
+                processData(); 
+            }
+        }
+        
+        let currentSortColumn = 'vencimento';
+        let currentSortDirection = 1;
+
+        function sortTable(column) {
+            if (currentSortColumn === column) {
+                currentSortDirection *= -1; 
+            } else {
+                currentSortColumn = column;
+                currentSortDirection = (column === 'percentual' || column === 'valor' || column === 'participacao_receita') ? -1 : 1; 
+            }
+            processData();
+        }
+
+        // --- PROCESSAMENTO CENTRAL (Com Filtro Mensal) ---
+        function processData() {
+            
+            // Filtra despesas pelo mês atual
+            const filteredExpenses = rawData.filter(d => parseInt(d.mes) === currentMonth);
+            
+            // Filtra receitas pelo mês atual
+            const filteredRevenues = rawRevenues.filter(r => parseInt(r.mes) === currentMonth); 
+            
+            // Calcula o total do mês (excluindo anuais) para o SUMÁRIO
+            const monthlyData = filteredExpenses.filter(d => {
+                const recurrence = String(d.recorrencia || '').toLowerCase().trim();
+                return recurrence !== 'anual';
+            });
+            
+            totalMonthlyExpenses = monthlyData.reduce((sum, d) => sum + d.valor, 0);
+            
+            // Renderiza receitas do mês selecionado e atualiza totalReceivedRevenue
+            renderRevenues(filteredRevenues); 
+            
+            const totalReceitas = totalReceivedRevenue; 
+
+            // Ordena os dados filtrados para a tabela
+            sortedData = [...filteredExpenses] 
+                .sort((a, b) => {
+                    let result = 0;
+                    
+                    const calculatePercent = (value, total) => (total > 0) ? (value / total) : 0;
+                    
+                    if (currentSortColumn === 'percentual') {
+                        const aRecurrence = String(a.recorrencia).toLowerCase().trim();
+                        const bRecurrence = String(b.recorrencia).toLowerCase().trim();
+                        
+                        const aValue = aRecurrence !== 'anual' ? a.valor : 0;
+                        const bValue = bRecurrence !== 'anual' ? b.valor : 0;
+
+                        const aPercent = calculatePercent(aValue, totalMonthlyExpenses);
+                        const bPercent = calculatePercent(bValue, totalMonthlyExpenses);
+                        result = aPercent - bPercent;
+                        
+                    } else if (currentSortColumn === 'participacao_receita') {
+                         const aPercent = calculatePercent(a.valor, totalReceitas);
+                         const bPercent = calculatePercent(b.valor, totalReceitas);
+                         result = aPercent - bPercent;
+                    }
+                    else {
+                        let aVal = a[currentSortColumn];
+                        let bVal = b[currentSortColumn];
+                        
+                        if (currentSortColumn === 'valor' || currentSortColumn === 'vencimento') {
+                             result = aVal - bVal;
+                        } else {
+                            if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                            if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+
+                            if (aVal < bVal) result = -1;
+                            if (aVal > bVal) result = 1;
+                        }
+                    }
+                    
+                    return result * currentSortDirection; 
+                });
+
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            // Nome do Mês Atual (Completo)
+            const monthName = MONTH_NAMES[currentMonth - 1]; 
+
+            // ATUALIZAÇÃO DOS TÍTULOS DOS GRÁFICOS
+            document.getElementById('titulo-essencial').textContent = `Essencial vs. Não Essencial (${monthName})`;
+            document.getElementById('titulo-pagamento').textContent = `Meio de Pagamento (${monthName})`;
+            document.getElementById('titulo-evolucao-mensal').textContent = `📈 Evolução de Gastos Mensais (Ano Atual) - Mês Atual: ${monthName}`;
+            
+            // ATUALIZAÇÃO DOS TÍTULOS DOS PAINÉIS DE SUMÁRIO (NOVO)
+            document.getElementById('titulo-total-receitas').textContent = `Total de Receitas (${monthName})`;
+            document.getElementById('titulo-saldo-liquido').textContent = `Saldo Líquido (${monthName})`;
+            document.getElementById('titulo-total-gastos').textContent = `Total de Gastos (${monthName})`;
+
+
+            // Usa monthlyData (despesas do mês atual, excluindo anuais)
+            const monthlyData = rawData.filter(d => {
+                const recurrence = String(d.recorrencia || '').toLowerCase().trim();
+                return parseInt(d.mes) === currentMonth && recurrence !== 'anual';
+            });
+            
+            const totalMensal = totalMonthlyExpenses;
+            const totalPago = monthlyData.filter(d => String(d.status || '').toLowerCase().trim() === 'pago').reduce((sum, d) => sum + d.valor, 0);
+            
+            const totalCartao = monthlyData.filter(d => String(d.cartao || '').toLowerCase().trim() === 'cartao').reduce((sum, d) => sum + d.valor, 0);
+            const totalDebito = monthlyData.filter(d => String(d.cartao || '').toLowerCase().trim() === 'debitoautomatico').reduce((sum, d) => sum + d.valor, 0);
+            const totalPix = monthlyData.filter(d => String(d.cartao || '').toLowerCase().trim() === 'pix').reduce((sum, d) => sum + d.valor, 0);
+            const totalOutros = monthlyData.filter(d => {
+                const cartao = String(d.cartao || '').toLowerCase().trim();
+                return cartao === 'outros' || cartao === 'boleto';
+            }).reduce((sum, d) => sum + d.valor, 0);
+            
+            // Total de gastos do MÊS SELECIONADO (incluindo anuais)
+            const totalGastosMesSelecionado = rawData.filter(d => parseInt(d.mes) === currentMonth).reduce((sum, d) => sum + d.valor, 0);
+
+            const totalReceitas = totalReceivedRevenue; // Receitas recebidas do MÊS SELECIONADO
+            const saldoLiquido = totalReceitas - totalGastosMesSelecionado; // Saldo do MÊS SELECIONADO
+            
+            document.getElementById('total-mensal').textContent = formatCurrency(totalMensal);
+            document.getElementById('total-pago').textContent = formatCurrency(totalPago);
+            document.getElementById('total-cartao').textContent = formatCurrency(totalCartao);
+            
+            document.getElementById('total-debito').textContent = formatCurrency(totalDebito);
+            document.getElementById('total-pix').textContent = formatCurrency(totalPix);
+            document.getElementById('total-outros').textContent = formatCurrency(totalOutros);
+
+            // ATUALIZAÇÃO DO CAMPO TOTAL DE GASTOS
+            document.getElementById('total-todos-meses').textContent = formatCurrency(totalGastosMesSelecionado); 
+            
+            // ATUALIZAÇÃO DO SALDO LÍQUIDO
+            document.getElementById('saldo-liquido').textContent = formatCurrency(saldoLiquido);
+            document.getElementById('saldo-liquido').style.color = saldoLiquido >= 0 ? '#28a745' : '#dc3545';
+
+            renderMonthlyEvolutionChart(); 
+            renderEssencialChart(monthlyData);
+            renderPaymentMethodChart(monthlyData); 
+            renderCategoryProportionChart(monthlyData);
+            
+            renderTable(sortedData, totalReceitas); 
+        }
+        
+        // --- FUNÇÕES DE GRÁFICOS (mantidas) ---
+        
+        function renderMonthlyEvolutionChart() {
+            // Agrupa todos os gastos (excluindo anuais) por mês
+            const monthlyTotals = Array(12).fill(0); 
+            
+            rawData.forEach(d => {
+                const mes = parseInt(d.mes);
+                const recorrencia = String(d.recorrencia || '').toLowerCase().trim();
+
+                if (mes >= 1 && mes <= 12 && recorrencia !== 'anual') {
+                    monthlyTotals[mes - 1] += d.valor;
+                }
+            });
+            
+            const labels = MONTH_NAMES_SHORT.slice(0, 12); 
+
+            const trace = {
+                x: labels,
+                y: monthlyTotals,
+                mode: 'lines+markers',
+                type: 'scatter',
+                name: 'Gastos Mensais',
+                line: { color: '#dc3545', width: 3 }, 
+                marker: { size: 10, color: '#dc3545', line: { width: 1, color: 'white' } },
+                hovertemplate: '<b>%{x}</b><br>Gastos: R$ %{y:,.2f}<extra></extra>'
+            };
+
+            const layout = {
+                title: false, 
+                height: 350,
+                xaxis: { title: 'Mês', tickvals: labels, ticktext: labels },
+                yaxis: { title: 'Valor Gasto (R$)', tickformat: '$,.0f' },
+                margin: { t: 20, b: 50, l: 60, r: 20 },
+                hovermode: 'x unified'
+            };
+
+            Plotly.react('grafico-evolucao-mensal', [trace], layout, {displayModeBar: false});
+        }
+
+        function renderCategoryProportionChart(data) {
+             const groupedData = data.reduce((acc, row) => {
+                const category = row.categoria.trim() || 'Sem Categoria';
+                acc[category] = (acc[category] || 0) + row.valor;
+                return acc;
+            }, {});
+
+            const totalGeral = data.reduce((sum, row) => sum + row.valor, 0);
+
+            const sortedCategories = Object.entries(groupedData).sort(([, a], [, b]) => a - b); 
+
+            const categories = sortedCategories.map(item => item[0]);
+            const values = sortedCategories.map(item => item[1]);
+            
+            const percentages = values.map(value => (value / totalGeral) * 100);
+            const textLabels = percentages.map(p => `${p.toFixed(1)}%`);
+
+
+            const chartData = [{
+                x: values,
+                y: categories,
+                type: 'bar',
+                orientation: 'h', 
+                text: textLabels, 
+                textposition: 'outside', 
+                marker: { color: Plotly.d3.scale.category20().range() },
+                hovertemplate: '<b>%{y}</b><br>Valor: R$ %{x:,.2f}<br>Participação: **%{text}**<extra></extra>'
+            }];
+
+            const layout = {
+                title: 'Gasto Total por Categoria (Ranking - Mês Selecionado)',
+                height: 600, 
+                xaxis: { title: 'Valor Total Gasto (R$)', tickformat: '$,.0f' },
+                yaxis: { automargin: true, tickfont: { size: 12 } },
+                margin: { t: 50, b: 50, l: 150, r: 20 },
+                uniformtext: { mode: 'hide', minsize: 9 },
+                xaxis: { automargin: true }
+            };
+
+            Plotly.react('grafico-categoria', chartData, layout, {displayModeBar: false});
+        }
+        
+        function renderEssencialChart(data) {
+             const groupedData = data.reduce((acc, row) => {
+                const cleanedType = String(row.tipo_gasto || '').toLowerCase().trim();
+                const type = cleanedType.includes('nao') ? 'Não Essencial' : 'Essencial';
+                             
+                acc[type] = acc[type] || { total: 0, details: [] };
+                acc[type].total += row.valor;
+                acc[type].details.push({ categoria: row.categoria, valor: row.valor });
+                return acc;
+            }, {});
+
+            const labels = Object.keys(groupedData);
+            const values = labels.map(label => groupedData[label].total);
+            
+            const customData = labels.map(label => {
+                const details = groupedData[label].details;
+                details.sort((a, b) => b.valor - a.valor);
+                let detailString = details.map(d => `- ${d.categoria}: ${formatCurrency(d.valor)}`).join('<br>'); 
+                return detailString || 'Nenhuma despesa detalhada.';
+            });
+            
+            const chartData = [{
+                values: values,
+                labels: labels,
+                type: 'pie',
+                hole: .4, 
+                marker: { colors: ['#28a745', '#dc3545'] },
+                customdata: customData, 
+                hovertemplate: '<b>%{label}</b><br>R$ %{value:,.2f}<br>Total: **%{percent}**<br>Detalhes:<br>%{customdata}<extra></extra>', 
+                textinfo: 'percent',
+                textposition: 'inside',
+            }];
+
+            const layout = {
+                title: false, 
+                height: 400,
+                margin: { t: 50, b: 0, l: 0, r: 0 }
+            };
+
+            Plotly.react('grafico-essencial', chartData, layout, {displayModeBar: false});
+        }
+        
+        function renderPaymentMethodChart(data) {
+             const groupedData = data.reduce((acc, row) => {
+                const label = String(row.cartao || 'outros').toLowerCase().trim();
+                const displayLabel = capitalize(label);
+                            
+                acc[displayLabel] = acc[displayLabel] || { total: 0, details: [] };
+                acc[displayLabel].total += row.valor;
+                
+                acc[displayLabel].details.push({ 
+                    categoria: row.categoria, 
+                    valor: row.valor 
+                });
+                return acc;
+            }, {});
+
+            const paymentMap = [
+                { label: 'Cartão', internalKey: 'cartao', color: '#007bff' },             
+                { label: 'Pix', internalKey: 'pix', color: '#6f42c1' },                
+                { label: 'Débito Automático', internalKey: 'debitoautomatico', color: '#ffc107' },  
+                { label: 'Outros', internalKey: 'outros', color: '#dc3545' },             
+            ];
+
+            let labels = [];
+            let values = [];
+            let customColors = [];
+            let customData = [];
+            
+            let totalOutrosAggregated = 0;
+            let detailsOutrosAggregated = [];
+            
+            if (groupedData['Boleto']) {
+                totalOutrosAggregated += groupedData['Boleto'].total;
+                detailsOutrosAggregated.push(...groupedData['Boleto'].details);
+                delete groupedData['Boleto'];
+            }
+            if (groupedData['Outros']) {
+                totalOutrosAggregated += groupedData['Outros'].total;
+                detailsOutrosAggregated.push(...groupedData['Outros'].details);
+                delete groupedData['Outros'];
+            }
+            
+            if (totalOutrosAggregated > 0) {
+                 groupedData['Outros'] = { total: totalOutrosAggregated, details: detailsOutrosAggregated };
+            }
+
+            Object.keys(groupedData).forEach(displayLabel => {
+                const data = groupedData[displayLabel];
+
+                labels.push(displayLabel);
+                values.push(data.total);
+                
+                let color = '#333';
+                const mapItem = paymentMap.find(m => m.label === displayLabel);
+                if (mapItem) {
+                     color = mapItem.color;
+                } else if (displayLabel === 'Outros') {
+                     color = paymentMap.find(m => m.label === 'Outros').color;
+                }
+                customColors.push(color);
+                
+                const details = data.details;
+                details.sort((a, b) => b.valor - a.valor);
+                let detailString = details.map(d => `- ${d.categoria}: ${formatCurrency(d.valor)}`).join('<br>'); 
+                customData.push(detailString || 'Nenhuma despesa detalhada.');
+            });
+
+
+            const chartData = [{
+                values: values,
+                labels: labels,
+                type: 'pie',
+                hole: .4, 
+                marker: { colors: customColors }, 
+                customdata: customData, 
+                hovertemplate: '<b>%{label}</b><br>R$ %{value:,.2f}<br>Total: **%{percent}**<br>Detalhes:<br>%{customdata}<extra></extra>', 
+                textinfo: 'percent',
+                textposition: 'inside',
+            }];
+
+            const layout = {
+                title: false,
+                height: 400,
+                margin: { t: 50, b: 0, l: 0, r: 0 }
+            };
+
+            Plotly.react('grafico-pagamento', chartData, layout, {displayModeBar: false});
+        }
+        
+        // --- FUNÇÃO DE RENDERIZAÇÃO DA TABELA (mantida) ---
+        function renderTable(data, totalReceitas) {
+            const tableDiv = document.getElementById('tabela-gastos');
+            let html = '<table><thead><tr>';
+            
+            const displayHeaders = [
+                { key: 'row_number', label: '#', sortable: false }, 
+                { key: 'categoria', label: 'Categoria', sortable: true },
+                { key: 'valor', label: 'Valor (R$)', sortable: true },
+                { key: 'percentual', label: 'Partic. Gasto (%)', sortable: true }, 
+                { key: 'participacao_receita', label: 'Partic. Receita (%)', sortable: true }, 
+                { key: 'vencimento', label: 'Vencimento', sortable: true },
+                { key: 'recorrencia', label: 'Recorrência', sortable: true },
+                { key: 'tipo_gasto', label: 'Tipo', sortable: true },
+                { key: 'cartao', label: 'Tipo Pagamento', sortable: true }, 
+                { key: 'status', label: 'Status', sortable: true },
+                { key: 'observacao', label: 'Observação', sortable: false },
+                { key: 'actions', label: 'Ações', sortable: false }
+            ];
+
+            displayHeaders.forEach(h => {
+                const direction = currentSortColumn === h.key ? (currentSortDirection === 1 ? ' ▲' : ' ▼') : '';
+                html += `<th ${h.sortable ? `onclick="sortTable('${h.key}')"` : ''}>${h.label}${direction}</th>`;
+            });
+            html += '</tr></thead><tbody>';
+
+            let totalValor = 0; 
+
+            data.forEach((row, index) => {
+                const statusValue = String(row.status || '').toLowerCase().trim();
+                const statusClass = statusValue === 'pago' ? 'status-pago' : 'status-pendente';
+                html += `<tr class="${statusClass}" data-id="${row.id}">`;
+                
+                displayHeaders.forEach(header => {
+                    let cellContent = '';
+                    const rowValue = row[header.key];
+                    const value = (rowValue !== null && rowValue !== undefined) ? String(rowValue).toLowerCase().trim() : '';
+
+                    if (header.key === 'row_number') {
+                        cellContent = index + 1; 
+                    } else if (header.key === 'valor') {
+                        cellContent = `<span class="editable-cell" onclick="makeEditable(${row.id}, '${header.key}', 'number', 2)">${formatCurrency(rowValue)}</span>`;
+                        
+                        if(String(row.recorrencia).toLowerCase().trim() !== 'anual') {
+                            totalValor += rowValue; 
+                        }
+                        
+                    } else if (header.key === 'percentual') {
+                        let percentage = 0;
+                         if (totalMonthlyExpenses > 0 && String(row.recorrencia).toLowerCase().trim() !== 'anual') {
+                            percentage = (row.valor / totalMonthlyExpenses) * 100;
+                        }
+                        cellContent = `<span class="percent-cell">${formatPercent(percentage)}</span>`;
+                    }
+                    else if (header.key === 'participacao_receita') { 
+                        let percentage = 0;
+                         if (totalReceitas > 0) {
+                            percentage = (row.valor / totalReceitas) * 100;
+                        }
+                        cellContent = `<span class="percent-cell" style="color:#007bff">${formatPercent(percentage)}</span>`;
+                    }
+                    else if (header.key === 'vencimento') {
+                        cellContent = `<span class="editable-cell" onclick="makeEditable(${row.id}, '${header.key}', 'number', 0)">${rowValue}</span>`;
+                    } else if (header.key === 'categoria' || header.key === 'observacao') {
+                        cellContent = `<span class="editable-cell" onclick="makeEditable(${row.id}, '${header.key}', 'text')">${rowValue}</span>`;
+                    } 
+                    else if (header.key === 'cartao') {
+                        const paymentOptions = [
+                            'Cartão', 'Pix', 'Débito Automático', 'Boleto', 'Outros'
+                        ];
+                        
+                        let selectOptions = paymentOptions.map(opt => {
+                            const optClean = opt.toLowerCase().replace(/ /g, '').replace('á', 'a').replace('é', 'e');
+                            const isSelected = value.includes(optClean) ? 'selected' : '';
+                            
+                            return `<option value="${opt}" ${isSelected}>${capitalize(opt)}</option>`;
+                        }).join('');
+
+                        cellContent = `
+                            <select class="cartao-select" data-id="${row.id}" data-field="${header.key}">
+                                ${selectOptions}
+                            </select>
+                        `;
+                    } 
+                    else if (header.key === 'recorrencia') {
+                        cellContent = `<select class="recorrencia-select" data-id="${row.id}" data-field="${header.key}"><option value="Mensal" ${value === 'mensal' ? 'selected' : ''}>Mensal</option><option value="Anual" ${value === 'anual' ? 'selected' : ''}>Anual</option><option value="Única" ${value.includes('unica') ? 'selected' : ''}>Única</option></select>`;
+                    } else if (header.key === 'status') {
+                        cellContent = `<span class="status-toggle-span" data-id="${row.id}">${capitalize(row.status)}</span>`;
+                    } else if (header.key === 'tipo_gasto') {
+                        cellContent = `<select class="tipo-gasto-select" data-id="${row.id}" data-field="${header.key}"><option value="Essencial" ${value === 'essencial' ? 'selected' : ''}>Essencial</option><option value="Nao Essencial" ${value === 'nao essencial' ? 'selected' : ''}>Não Essencial</option></select>`;
+                    } else if (header.key === 'actions') {
+                        cellContent = `<button class="delete-btn" onclick="deleteExpense(${row.id})">🗑️</button>`;
+                    } else {
+                        cellContent = rowValue; 
+                    }
+                    
+                    html += `<td>${cellContent}</td>`;
+                });
+                html += '</tr>';
+            });
+
+            html += '</tbody>';
+            
+            const numeroDeItens = data.length;
+            const colSpanBeforeTotal = displayHeaders.findIndex(h => h.key === 'valor'); 
+            
+            html += `<tfoot>
+                        <tr>
+                            <th colspan="${colSpanBeforeTotal}">
+                                Total Geral Deste Mês (${numeroDeItens} itens - Excluindo Anuais):
+                            </th>
+                            <th style="text-align: right;">${formatCurrency(totalValor)}</th>
+                            <th colspan="${displayHeaders.length - colSpanBeforeTotal - 1}"></th> 
+                        </tr>
+                    </tfoot>`;
+            
+            html += '</table>';
+            tableDiv.innerHTML = html;
+        }
+        
+        // --- Funções de Edição (mantidas) ---
+        function makeEditable(id, field, type, decimals = 0) {
+            const rowElement = document.querySelector(`tr[data-id="${id}"]`);
+            if (!rowElement) return;
+
+            const cellSpan = rowElement.querySelector(`span[onclick*="makeEditable(${id}, '${field}'"]`);
+            if (!cellSpan || cellSpan.querySelector('input')) return; 
+
+            const originalValue = field === 'valor' ? cleanCurrency(cellSpan.textContent) : cellSpan.textContent;
+            
+            const input = document.createElement('input');
+            input.type = type;
+            input.value = originalValue;
+            input.className = 'editable-input';
+            
+            if (type === 'number') {
+                input.step = decimals > 0 ? '0.01' : '1';
+            }
+
+            input.onblur = () => {
+                let newValue = input.value;
+                if (type === 'number') {
+                    newValue = parseFloat(newValue) || 0;
+                    if (field === 'vencimento' && (newValue < 1 || newValue > 31)) {
+                        alert('O dia de vencimento deve estar entre 1 e 31.');
+                        updateRowDisplay(id, field, originalValue);
+                        return;
+                    }
+                }
+                
+                updateRowData(id, field, newValue);
+                if(field !== 'valor' && field !== 'vencimento') {
+                    updateRowDisplay(id, field, newValue);
+                }
+            };
+            
+            cellSpan.onclick = null; 
+
+            cellSpan.innerHTML = '';
+            cellSpan.appendChild(input);
+            input.focus();
+        }
+
+        function updateRowDisplay(id, field, value) {
+            const rowElement = document.querySelector(`tr[data-id="${id}"]`);
+            if (!rowElement) return;
+
+            const cellSpan = rowElement.querySelector(`span[onclick*="makeEditable(${id}, '${field}'"]`);
+            if (cellSpan) {
+                cellSpan.textContent = field === 'valor' ? formatCurrency(value) : value;
+                cellSpan.onclick = () => makeEditable(id, field, (field === 'valor' || field === 'vencimento') ? 'number' : 'text', field === 'valor' ? 2 : 0);
+            }
+        }
+        
+        // --- FUNÇÕES DE EXPORTAÇÃO ---
+        function exportExpensesToCSV(month) {
+            const EXPORT_EXPENSE_COLUMN_NAMES = {
+                'categoria': 'Categoria',
+                'vencimento': 'Vencimento (Dia do Mês)',
+                'valor': 'Valor (R$)',
+                'status': 'Status',
+                'recorrencia': 'Recorrência',
+                'tipo_gasto': 'Tipo de Gasto',
+                'observacao': 'Observação',
+                'cartao': 'Tipo Pagamento',
+                'mes': 'Mês'
+            };
+            
+            const dataFilteredByMonth = rawData.filter(item => parseInt(item.mes) === month);
+
+            const dataToExport = dataFilteredByMonth.map(item => {
+                const row = {};
+                for (const internalKey in EXPORT_EXPENSE_COLUMN_NAMES) {
+                    const originalHeader = EXPORT_EXPENSE_COLUMN_NAMES[internalKey];
+                    let value = item[internalKey];
+
+                    if (internalKey === 'valor') {
+                        value = String(value).replace('.', ','); 
+                    } else if (['status', 'recorrencia', 'tipo_gasto', 'cartao'].includes(internalKey)) {
+                        value = capitalize(value);
+                    } else if (typeof value === 'string') {
+                        value = value.includes(';') ? `"${value}"` : value;
+                    }
+
+                    row[originalHeader] = value;
+                }
+                return row;
+            });
+
+            const csv = Papa.unparse(dataToExport, { header: true, delimiter: ";", quotes: false });
+            const monthStr = String(month).padStart(2, '0');
+            const filename = `${monthStr}-controle-gastos_${CURRENT_YEAR}.csv`;
+            
+            downloadCSV(csv, filename);
+        }
+
+        // NOVO: Função para exportar receitas FILTRADAS PELO MÊS
+        function exportRevenuesToCSV(month) {
+            const REVENUE_EXPORT_COLUMN_NAMES = {
+                'fonte': 'Fonte',
+                'valor': 'Valor (R$)',
+                'status': 'Status',
+                'recorrencia': 'Recorrência',
+                'mes': 'Mês'
+            };
+            
+            const dataFilteredByMonth = rawRevenues.filter(item => parseInt(item.mes) === month);
+            
+            const dataToExport = dataFilteredByMonth.map(item => {
+                const row = {};
+                for (const internalKey in REVENUE_EXPORT_COLUMN_NAMES) {
+                    const originalHeader = REVENUE_EXPORT_COLUMN_NAMES[internalKey];
+                    let value = item[internalKey];
+
+                    if (internalKey === 'valor') {
+                        value = String(value).replace('.', ',');
+                    } else if (['status', 'recorrencia'].includes(internalKey)) {
+                        value = capitalize(value);
+                    } else if (typeof value === 'string') {
+                        value = value.includes(';') ? `"${value}"` : value;
+                    }
+
+                    row[originalHeader] = value;
+                }
+                return row;
+            });
+
+            const csv = Papa.unparse(dataToExport, { header: true, delimiter: ";", quotes: false });
+            const monthStr = String(month).padStart(2, '0');
+            const filename = `${monthStr}-controle-receitas_${CURRENT_YEAR}.csv`;
+            downloadCSV(csv, filename);
+        }
+
+        // FUNÇÃO DE SALVAR ATUALIZADA (24 ARQUIVOS)
+        function saveAllData() {
+            let exportedCount = 0;
+            
+            for (let i = 1; i <= 12; i++) {
+                // 1. Exporta Despesas Mensais
+                if (rawData.some(d => parseInt(d.mes) === i)) {
+                    exportExpensesToCSV(i);
+                    exportedCount++;
+                }
+                // 2. Exporta Receitas Mensais
+                if (rawRevenues.some(r => parseInt(r.mes) === i)) {
+                    exportRevenuesToCSV(i);
+                    exportedCount++;
+                }
+            }
+            
+            alert(`Processo de exportação iniciado. ${exportedCount} arquivos CSV (Despesas e Receitas por Mês) serão enviados para download. Você deve aceitar os múltiplos downloads.`);
+        }
+
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            
+            link.download = filename;
+            link.href = URL.createObjectURL(blob);
+            
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+    </script>
+</body>
+</html>

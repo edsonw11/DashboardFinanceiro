@@ -1,0 +1,21 @@
+Categoria;Vencimento (Dia do Mês);Valor (R$);Status;Recorrência;Tipo de Gasto;Observação;Tipo Pagamento;Mês
+Energia;7;200;Pendente;Mensal;Essencial;Dia fixo 7;Debitoautomatico;4
+Inter Cell;7;30;Pendente;Mensal;Essencial;Dia fixo 7;Debitoautomatico;4
+Combustivel;7;500;Pendente;Mensal;Essencial;Estimativa, dia 7;Pix;4
+Onibus/Metro;7;150;Pendente;Mensal;Essencial;Estimativa, dia 7;Cartao;4
+Academia;7;43;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;4
+Veroo Cafes;7;48;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;4
+YoutubePremium;7;27;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;4
+Clube Smiles;7;47;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;4
+Ingles;7;340;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;4
+Internet Mae;10;40;Pendente;Mensal;Essencial;Dia fixo 10;Pix;4
+Internet Casa;21;43;Pendente;Mensal;Essencial;Dia fixo 21;Debitoautomatico;4
+Condominio;25;880;Pendente;Mensal;Essencial;Dia fixo 25;Pix;4
+Prestacao Carro;30;1800;Pendente;Mensal;Essencial;Dia fixo 30;Debitoautomatico;4
+Convenio Mae;30;230;Pendente;Mensal;Essencial;Dia fixo 30;Pix;4
+Mercado;30;1200;Pendente;Mensal;Essencial;Estimativa (fim do mês);Pix;4
+Ovos;30;90;Pendente;Mensal;Essencial;Estimativa;Pix;4
+Carne;30;200;Pendente;Mensal;Essencial;Estimativa;Pix;4
+Corte Cabelo;30;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;4
+Almoço Sabado;30;100;Pendente;Anual;Não Essencial;Estimativa;Pix;4
+IPTU;30;150;Pendente;Anual;Essencial;Vencimento em Janeiro;Pix;4
