@@ -46,13 +46,45 @@
             margin-left: 10px;
             transition: background-color 0.2s;
         }
+
+        /* --- NOVO ESTILO: Dropdown do Botão Salvar --- */
+        .dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            background-color: #f9f9f9;
+            min-width: 250px;
+            box-shadow: 0px 8px 16px 0px rgba(0,0,0,0.2);
+            z-index: 100; /* Garante que fique acima de outros elementos */
+            border-radius: 5px;
+            overflow: hidden;
+            right: 0; /* Alinha o dropdown à direita do botão */
+        }
+        .dropdown-content a {
+            color: #333;
+            padding: 12px 16px;
+            text-decoration: none;
+            display: block;
+            font-size: 14px;
+        }
+        .dropdown-content a:hover {
+            background-color: #f1f1f1;
+        }
+        .dropdown:hover .dropdown-content {
+            display: block;
+        }
+        
         .controls .save-all-btn { 
-            background-color: #007bff; 
-            font-weight: bold;
+             background-color: #007bff; 
+             font-weight: bold;
         }
         .controls .save-all-btn:hover { 
-            background-color: #0056b3; 
+             background-color: #0056b3; 
         }
+        
         .controls .import-btn { background-color: #28a745; }
         .controls .import-btn:hover { background-color: #218838; }
 
@@ -399,9 +431,15 @@
 
     <div class="container">
         <div class="controls">
-            <button class="save-all-btn" id="save-all-btn"> 
-                💾 Salvar Dados em CSV (24 Arquivos)
-            </button>
+             <div class="dropdown">
+                <button class="save-all-btn" id="save-dropdown-btn"> 
+                    💾 Salvar Dados (Opções) ▼
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="save-current-month">Salvar Apenas Mês Atual</a>
+                    <a href="#" id="save-all-months">Salvar Todos os Meses (24 Arquivos)</a>
+                </div>
+            </div>
             
             <button class="import-btn" id="import-csv-btn">
                 📤 Importar Novo CSV
@@ -413,7 +451,8 @@
             
             <div id="revenue-container">
                 <div class="revenue-summary">
-                    <h3 id="titulo-total-receitas">Total de Receitas (Mês Selecionado)</h3> <div class="revenue-value" id="total-receitas">R$ 0,00</div>
+                    <h3 id="titulo-total-receitas">Total de Receitas (Mês Selecionado)</h3> 
+                    <div class="revenue-value" id="total-receitas">R$ 0,00</div>
                 </div>
                 
                 <div class="chart-box">
@@ -431,11 +470,13 @@
             </div>
             
             <div class="summary-box" style="border-top: 5px solid #007bff; display: flex; flex-direction: column; justify-content: center; text-align: center;">
-                <h3 id="titulo-saldo-liquido" style="color: #007bff; margin-bottom: 10px;">Saldo Líquido (Mês)</h3> <div class="summary-value" id="saldo-liquido" style="font-size: 3em;">R$ 0,00</div>
+                <h3 id="titulo-saldo-liquido" style="color: #007bff; margin-bottom: 10px;">Saldo Líquido (Mês)</h3> 
+                <div class="summary-value" id="saldo-liquido" style="font-size: 3em;">R$ 0,00</div>
                 
                 <hr style="width: 80%; border: 1px solid #eee;">
                 
-                <h3 id="titulo-total-gastos" style="color: #dc3545; margin-top: 20px; margin-bottom: 10px;">Total de Gastos (Mês Selecionado)</h3> <div class="summary-value summary-total" id="total-todos-meses" style="font-size: 2em; color: #dc3545;">R$ 0,00</div>
+                <h3 id="titulo-total-gastos" style="color: #dc3545; margin-top: 20px; margin-bottom: 10px;">Total de Gastos (Mês Selecionado)</h3> 
+                <div class="summary-value summary-total" id="total-todos-meses" style="font-size: 2em; color: #dc3545;">R$ 0,00</div>
             </div>
             
         </div>
@@ -570,12 +611,21 @@
             'valor': 'Valor (R$)',
             'status': 'Status',
             'recorrencia': 'Recorrência',
-            'mes': 'Mês' // Adicionado coluna Mês para receitas
+            'mes': 'Mês' 
         };
 
-        // --- INICIALIZAÇÃO ---
+        // --- INICIALIZAÇÃO (MODIFICADA) ---
         document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('save-all-btn').addEventListener('click', saveAllData);
+            
+            // NOVO: Eventos para o Dropdown Salvar
+            document.getElementById('save-current-month').addEventListener('click', (e) => {
+                e.preventDefault();
+                saveCurrentMonthData();
+            });
+            document.getElementById('save-all-months').addEventListener('click', (e) => {
+                e.preventDefault();
+                saveAllData(); 
+            });
             
             const importButton = document.getElementById('import-csv-btn');
             const fileInput = document.getElementById('file-input');
@@ -781,16 +831,23 @@
                             if (internalKey === 'tipo_gasto') {
                                 value = value.includes('nao') || value.includes('não') ? 'nao essencial' : 'essencial';
                             }
+                            // --- CORREÇÃO TIPO PAGAMENTO CARTÃO (Versão 7.2) ---
                             if (internalKey === 'cartao') {
-                                if (value.includes('débito') || value.includes('debito')) value = 'debitoautomatico';
-                                if (value.includes('cartao')) value = 'cartao';
-                                if (value.includes('pix')) value = 'pix';
-                                if (value.includes('boleto')) value = 'boleto';
-                                if (value.includes('outros') || value === '') value = 'outros';
-                                
-                                if (!['cartao', 'pix', 'debitoautomatico', 'boleto', 'outros'].includes(value)) {
-                                     value = 'outros'; 
+                                let cleanPayment = value.toLowerCase().trim().replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+                                if (cleanPayment.includes('cartão') || cleanPayment.includes('cartao')) {
+                                    value = 'cartao';
+                                } else if (cleanPayment.includes('débito') || cleanPayment.includes('debito')) {
+                                    value = 'debitoautomatico';
+                                } else if (cleanPayment.includes('pix')) {
+                                    value = 'pix';
+                                } else if (cleanPayment.includes('boleto')) {
+                                    value = 'boleto';
+                                } else {
+                                    value = 'outros'; // Catch-all para strings vazias ou inválidas
                                 }
+                                
+                                // O valor final já está ajustado acima.
                             }
                         }
                     } else { // Receita
@@ -881,7 +938,7 @@
                 valor: parseFloat(document.getElementById('new-rev-valor').value) || 0,
                 status: document.getElementById('new-rev-status').value.toLowerCase().trim(),
                 recorrencia: document.getElementById('new-rev-recorrencia').value.toLowerCase().trim().replace('ú', 'u'),
-                mes: currentMonth // Adiciona a receita ao mês selecionado
+                mes: currentMonth 
             };
             if (newRevenue.valor > 0) {
                 rawRevenues.push(newRevenue);
@@ -1100,7 +1157,7 @@
             document.getElementById('titulo-pagamento').textContent = `Meio de Pagamento (${monthName})`;
             document.getElementById('titulo-evolucao-mensal').textContent = `📈 Evolução de Gastos Mensais (Ano Atual) - Mês Atual: ${monthName}`;
             
-            // ATUALIZAÇÃO DOS TÍTULOS DOS PAINÉIS DE SUMÁRIO (NOVO)
+            // ATUALIZAÇÃO DOS TÍTULOS DOS PAINÉIS DE SUMÁRIO
             document.getElementById('titulo-total-receitas').textContent = `Total de Receitas (${monthName})`;
             document.getElementById('titulo-saldo-liquido').textContent = `Saldo Líquido (${monthName})`;
             document.getElementById('titulo-total-gastos').textContent = `Total de Gastos (${monthName})`;
@@ -1115,13 +1172,31 @@
             const totalMensal = totalMonthlyExpenses;
             const totalPago = monthlyData.filter(d => String(d.status || '').toLowerCase().trim() === 'pago').reduce((sum, d) => sum + d.valor, 0);
             
-            const totalCartao = monthlyData.filter(d => String(d.cartao || '').toLowerCase().trim() === 'cartao').reduce((sum, d) => sum + d.valor, 0);
-            const totalDebito = monthlyData.filter(d => String(d.cartao || '').toLowerCase().trim() === 'debitoautomatico').reduce((sum, d) => sum + d.valor, 0);
-            const totalPix = monthlyData.filter(d => String(d.cartao || '').toLowerCase().trim() === 'pix').reduce((sum, d) => sum + d.valor, 0);
+            // CÁLCULOS DO TIPO PAGAMENTO - CORREÇÃO APLICADA AQUI (V 7.3)
+            // Usando o bloco de filtro completo para garantir a correta string 'cartao'
+            
+            const totalCartao = monthlyData.filter(d => {
+                const cartaoType = String(d.cartao || '').toLowerCase().trim();
+                return cartaoType === 'cartao';
+            }).reduce((sum, d) => sum + d.valor, 0);
+            
+            const totalDebito = monthlyData.filter(d => {
+                const cartaoType = String(d.cartao || '').toLowerCase().trim();
+                return cartaoType === 'debitoautomatico';
+            }).reduce((sum, d) => sum + d.valor, 0);
+            
+            const totalPix = monthlyData.filter(d => {
+                const cartaoType = String(d.cartao || '').toLowerCase().trim();
+                return cartaoType === 'pix';
+            }).reduce((sum, d) => sum + d.valor, 0);
+
+            // Total Outros (Soma 'outros' E 'boleto')
             const totalOutros = monthlyData.filter(d => {
                 const cartao = String(d.cartao || '').toLowerCase().trim();
                 return cartao === 'outros' || cartao === 'boleto';
             }).reduce((sum, d) => sum + d.valor, 0);
+            
+            // FIM DO BLOCO DE CÁLCULOS CORRIGIDO
             
             // Total de gastos do MÊS SELECIONADO (incluindo anuais)
             const totalGastosMesSelecionado = rawData.filter(d => parseInt(d.mes) === currentMonth).reduce((sum, d) => sum + d.valor, 0);
@@ -1329,6 +1404,7 @@
             let totalOutrosAggregated = 0;
             let detailsOutrosAggregated = [];
             
+            // Agrega Boleto e Outros no item "Outros" para fins de exibição no gráfico
             if (groupedData['Boleto']) {
                 totalOutrosAggregated += groupedData['Boleto'].total;
                 detailsOutrosAggregated.push(...groupedData['Boleto'].details);
@@ -1459,10 +1535,19 @@
                         ];
                         
                         let selectOptions = paymentOptions.map(opt => {
-                            const optClean = opt.toLowerCase().replace(/ /g, '').replace('á', 'a').replace('é', 'e');
-                            const isSelected = value.includes(optClean) ? 'selected' : '';
+                            // Mapeamento especial para o valor do select (interno)
+                            let selectValue = opt.toLowerCase().replace(/ /g, '').replace('á', 'a').replace('é', 'e');
                             
-                            return `<option value="${opt}" ${isSelected}>${capitalize(opt)}</option>`;
+                            // Correção para o mapeamento interno
+                            if (opt === 'Cartão') selectValue = 'cartao';
+                            if (opt === 'Débito Automático') selectValue = 'debitoautomatico';
+                            if (opt === 'Pix') selectValue = 'pix';
+                            if (opt === 'Boleto') selectValue = 'boleto';
+                            if (opt === 'Outros') selectValue = 'outros';
+                            
+                            const isSelected = value.includes(selectValue) ? 'selected' : '';
+
+                            return `<option value="${selectValue}" ${isSelected}>${opt}</option>`;
                         }).join('');
 
                         cellContent = `
@@ -1562,6 +1647,46 @@
         }
         
         // --- FUNÇÕES DE EXPORTAÇÃO ---
+        
+        // NOVO: Função para salvar APENAS o mês atual (Despesas e Receitas)
+        function saveCurrentMonthData() {
+            let exportedCount = 0;
+            const monthName = MONTH_NAMES[currentMonth - 1]; 
+
+            // 1. Exporta Despesas do Mês Atual
+            if (rawData.some(d => parseInt(d.mes) === currentMonth)) {
+                exportExpensesToCSV(currentMonth);
+                exportedCount++;
+            }
+            // 2. Exporta Receitas do Mês Atual
+            if (rawRevenues.some(r => parseInt(r.mes) === currentMonth)) {
+                exportRevenuesToCSV(currentMonth);
+                exportedCount++;
+            }
+            
+            alert(`Processo de exportação iniciado. ${exportedCount} arquivo(s) CSV (Despesas e Receitas) do mês de ${monthName} serão enviados para download.`);
+        }
+        
+        // Função original (agora salva todos os 24 arquivos)
+        function saveAllData() { 
+            let exportedCount = 0;
+            
+            for (let i = 1; i <= 12; i++) {
+                // 1. Exporta Despesas Mensais
+                if (rawData.some(d => parseInt(d.mes) === i)) {
+                    exportExpensesToCSV(i);
+                    exportedCount++;
+                }
+                // 2. Exporta Receitas Mensais
+                if (rawRevenues.some(r => parseInt(r.mes) === i)) {
+                    exportRevenuesToCSV(i);
+                    exportedCount++;
+                }
+            }
+            
+            alert(`Processo de exportação iniciado. ${exportedCount} arquivos CSV (Despesas e Receitas por Mês) serão enviados para download. Você deve aceitar os múltiplos downloads.`);
+        }
+
         function exportExpensesToCSV(month) {
             const EXPORT_EXPENSE_COLUMN_NAMES = {
                 'categoria': 'Categoria',
@@ -1603,7 +1728,6 @@
             downloadCSV(csv, filename);
         }
 
-        // NOVO: Função para exportar receitas FILTRADAS PELO MÊS
         function exportRevenuesToCSV(month) {
             const REVENUE_EXPORT_COLUMN_NAMES = {
                 'fonte': 'Fonte',
@@ -1638,26 +1762,6 @@
             const monthStr = String(month).padStart(2, '0');
             const filename = `${monthStr}-controle-receitas_${CURRENT_YEAR}.csv`;
             downloadCSV(csv, filename);
-        }
-
-        // FUNÇÃO DE SALVAR ATUALIZADA (24 ARQUIVOS)
-        function saveAllData() {
-            let exportedCount = 0;
-            
-            for (let i = 1; i <= 12; i++) {
-                // 1. Exporta Despesas Mensais
-                if (rawData.some(d => parseInt(d.mes) === i)) {
-                    exportExpensesToCSV(i);
-                    exportedCount++;
-                }
-                // 2. Exporta Receitas Mensais
-                if (rawRevenues.some(r => parseInt(r.mes) === i)) {
-                    exportRevenuesToCSV(i);
-                    exportedCount++;
-                }
-            }
-            
-            alert(`Processo de exportação iniciado. ${exportedCount} arquivos CSV (Despesas e Receitas por Mês) serão enviados para download. Você deve aceitar os múltiplos downloads.`);
         }
 
         function downloadCSV(csvContent, filename) {

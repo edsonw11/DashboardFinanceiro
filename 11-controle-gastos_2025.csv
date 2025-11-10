@@ -1,0 +1,22 @@
+Categoria;Vencimento (Dia do Mês);Valor (R$);Status;Recorrência;Tipo de Gasto;Observação;Tipo Pagamento;Mês
+Energia;7;200;Pago;Mensal;Essencial;Dia fixo 7;Débito Automático;11
+Inter Cell;7;30;Pago;Mensal;Essencial;Dia fixo 7;Débito Automático;11
+Combustivel;7;500;Pago;Mensal;Essencial;Estimativa, dia 7;Pix;11
+Onibus/Metro;7;150;Pago;Mensal;Essencial;Estimativa, dia 7;Cartão;11
+Academia;7;113;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartão;11
+Veroo Cafes;7;48;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartão;11
+YoutubePremium;7;27;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartão;11
+Clube Smiles;7;47;Pago;Mensal;Não Essencial;Vencimento do cartao (Dia 7);Cartão;11
+Ingles;7;340;Pago;Mensal;Não Essencial;Vencimento do cartao (Dia 7);Cartão;11
+Internet Mae;10;40;Pago;Mensal;Essencial;Dia fixo 10;Pix;11
+Internet Casa;21;113;Pago;Mensal;Essencial;Dia fixo 21;Débito Automático;11
+Condominio;25;880;Pago;Mensal;Essencial;Dia fixo 25;Pix;11
+Prestacao Carro;30;1800;Pago;Mensal;Essencial;Dia fixo 30;Débito Automático;11
+Convenio Mae;30;230;Pago;Mensal;Essencial;Dia fixo 30;Pix;11
+Mercado;30;1200;Pago;Mensal;Essencial;Estimativa (fim do mês);Pix;11
+Ovos;30;90;Pago;Mensal;Essencial;Estimativa;Pix;11
+Carne;30;200;Pago;Mensal;Essencial;Estimativa;Pix;11
+Corte Cabelo;30;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;11
+Almoço Sabado;30;100;Pendente;Anual;Não Essencial;Estimativa;Pix;11
+IPTU;30;150;Pago;Anual;Essencial;Vencimento em Janeiro;Pix;11
+calça;30;91;Pago;Mensal;Essencial;Adicionado via dashboard;Pix;11
