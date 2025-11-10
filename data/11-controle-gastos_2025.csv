@@ -16,7 +16,7 @@ Convenio Mae;30;230;Pago;Mensal;Essencial;Dia fixo 30;Pix;11
 Mercado;30;1200;Pago;Mensal;Essencial;Estimativa (fim do mês);Pix;11
 Ovos;30;90;Pago;Mensal;Essencial;Estimativa;Pix;11
 Carne;30;200;Pago;Mensal;Essencial;Estimativa;Pix;11
-Corte Cabelo;30;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;11
+Corte Cabelo;09;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;11
 Almoço Sabado;30;100;Pendente;Anual;Não Essencial;Estimativa;Pix;11
 IPTU;30;150;Pago;Anual;Essencial;Vencimento em Janeiro;Pix;11
 calça;30;91;Pago;Única;Essencial;Adicionado via dashboard;Pix;11

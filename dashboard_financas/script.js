@@ -1,4 +1,3 @@
-
 // --- VARIÁVEIS DE ESTADO ---
 let rawData = []; // Armazena dados de despesas de TODOS os meses
 let rawRevenues = []; // Armazena dados de receitas de TODOS os meses
@@ -77,9 +76,15 @@ function cleanCurrency(value) {
     if (typeof value === 'number') return value;
     return 0;
 }
+
+// FUNÇÃO MODIFICADA PARA PERMITIR ABREVIAÇÃO K/M SE NECESSÁRIO (para caber nos boxes)
 function formatCurrency(value) {
-     return (value || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    value = value || 0;
+    
+    // Apenas formatação padrão: R$ 12.700,00
+    return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
+
 function formatPercent(value) {
     if (typeof value === 'number' && !isNaN(value)) {
         return value.toFixed(1) + '%';
@@ -240,7 +245,10 @@ function normalizeData(data, columnMap, isExpense) {
                 value = cleanCurrency(value);
                 if (value > 0) hasValidValue = true;
             } else if (internalKey === 'vencimento') { 
-                value = parseInt(value) || 30;
+                // NOVO: Adiciona a data completa como um campo temporário
+                const vencimentoDia = parseInt(value) || 30;
+                newRow['vencimento_full_date'] = new Date(CURRENT_YEAR, currentMonth - 1, vencimentoDia);
+                value = vencimentoDia; // Mantém o dia do mês
             } else if (internalKey === 'mes') { 
                 value = parseInt(value) || currentMonth; // Default para o mês atual
             } else {
@@ -440,10 +448,12 @@ function addExpense(event) {
     
     tipo_gasto = tipo_gasto.includes('nao') ? 'nao essencial' : 'essencial';
 
+    const vencimentoDia = parseInt(document.getElementById('new-vencimento').value) || 30;
+    
     const newExpense = {
         id: rawData.length > 0 ? Math.max(...rawData.map(d => d.id)) + 1 : 0, 
         categoria: document.getElementById('new-categoria').value,
-        vencimento: parseInt(document.getElementById('new-vencimento').value) || 30,
+        vencimento: vencimentoDia,
         valor: parseFloat(document.getElementById('new-valor').value) || 0,
         status: 'pendente', 
         recorrencia: recorrencia, 
@@ -511,6 +521,7 @@ function sortTable(column) {
         currentSortDirection *= -1; 
     } else {
         currentSortColumn = column;
+        // NOVO: Valor padrão de ordenação: Decrescente para valor/percentual, Crescente para outros
         currentSortDirection = (column === 'percentual' || column === 'valor' || column === 'participacao_receita') ? -1 : 1; 
     }
     processData();
@@ -542,15 +553,38 @@ function processData() {
     // Ordena os dados filtrados para a tabela
     sortedData = [...filteredExpenses] 
         .sort((a, b) => {
+            // --- LÓGICA DE ORDENAÇÃO MULTI-CRITÉRIO: INICIAL OU POR CLIQUE NO HEADER ---
             let result = 0;
+            const sortColumn = currentSortColumn;
             
+            // 1. ORDENAÇÃO PADRÃO (SE NENHUM CLIQUE FOI FEITO) OU ORDENAÇÃO POR STATUS (SE CLICADO)
+            if (sortColumn === 'vencimento' || currentSortColumn === 'status') {
+                // Prioriza Status 'pendente' (0) antes de 'pago' (1)
+                const statusA = String(a.status || '').toLowerCase().trim();
+                const statusB = String(b.status || '').toLowerCase().trim();
+                const sortStatusA = statusA === 'pendente' ? 0 : 1;
+                const sortStatusB = statusB === 'pendente' ? 0 : 1;
+                
+                if (sortStatusA !== sortStatusB) {
+                    return sortStatusA - sortStatusB; // Ordena por Status
+                }
+                
+                // Se o Status é o mesmo (ambos pendentes), ordena por Vencimento
+                if (sortStatusA === 0) { 
+                     // NOVO: Criar data completa para a comparação cronológica
+                     const dateA = new Date(CURRENT_YEAR, currentMonth - 1, a.vencimento);
+                     const dateB = new Date(CURRENT_YEAR, currentMonth - 1, b.vencimento);
+                     return dateA - dateB; // Ordem cronológica (do mais antigo/próximo ao mais novo)
+                }
+            }
+
+            // 2. ORDENAÇÃO POR CLIQUE EM OUTRA COLUNA (Lógica Original)
             const calculatePercent = (value, total) => (total > 0) ? (value / total) : 0;
             
-            if (currentSortColumn === 'percentual') {
+            if (sortColumn === 'percentual') {
                 const aRecurrence = String(a.recorrencia).toLowerCase().trim();
                 const bRecurrence = String(b.recorrencia).toLowerCase().trim();
                 
-                // % do gasto mensal apenas para despesas não-anuais
                 const aValue = aRecurrence !== 'anual' ? a.valor : 0;
                 const bValue = bRecurrence !== 'anual' ? b.valor : 0;
 
@@ -558,16 +592,16 @@ function processData() {
                 const bPercent = calculatePercent(bValue, totalMonthlyExpenses);
                 result = aPercent - bPercent;
                 
-            } else if (currentSortColumn === 'participacao_receita') {
+            } else if (sortColumn === 'participacao_receita') {
                  const aPercent = calculatePercent(a.valor, totalReceitas);
                  const bPercent = calculatePercent(b.valor, totalReceitas);
                  result = aPercent - bPercent;
             }
             else {
-                let aVal = a[currentSortColumn];
-                let bVal = b[currentSortColumn];
+                let aVal = a[sortColumn];
+                let bVal = b[sortColumn];
                 
-                if (currentSortColumn === 'valor' || currentSortColumn === 'vencimento') {
+                if (sortColumn === 'valor' || sortColumn === 'vencimento') {
                      result = aVal - bVal;
                 } else {
                     if (typeof aVal === 'string') aVal = aVal.toLowerCase();
@@ -584,6 +618,7 @@ function processData() {
     renderDashboard();
 }
 
+// FUNÇÃO renderDashboard MODIFICADA PARA OCULTAR BOXES ZERADOS
 function renderDashboard() {
     // Nome do Mês Atual (Completo)
     const monthName = MONTH_NAMES[currentMonth - 1]; 
@@ -637,15 +672,37 @@ function renderDashboard() {
     const totalReceitas = totalReceivedRevenue; // Receitas recebidas do MÊS SELECIONADO
     const saldoLiquido = totalReceitas - totalGastosMesSelecionado; // Saldo do MÊS SELECIONADO
     
-    document.getElementById('total-mensal').textContent = formatCurrency(totalMensal);
-    document.getElementById('total-pago').textContent = formatCurrency(totalPago);
-    document.getElementById('total-cartao').textContent = formatCurrency(totalCartao);
     
-    document.getElementById('total-debito').textContent = formatCurrency(totalDebito);
-    document.getElementById('total-pix').textContent = formatCurrency(totalPix);
-    document.getElementById('total-outros').textContent = formatCurrency(totalOutros);
+    // --- NOVO CÓDIGO AQUI: RENDERIZAÇÃO E REGRA DE VISIBILIDADE PARA BOXES ---
+    const totals = {
+        'total-mensal': totalMensal,
+        'total-pago': totalPago,
+        'total-cartao': totalCartao,
+        'total-debito': totalDebito,
+        'total-pix': totalPix,
+        'total-outros': totalOutros,
+    };
+    
+    for (const [id, value] of Object.entries(totals)) {
+        const element = document.getElementById(id);
+        const box = element ? element.closest('.summary-box') : null;
+        
+        // Renderiza o valor formatado
+        element.textContent = formatCurrency(value);
+        
+        // REGRA PRINCIPAL: Se o valor for zero, oculta o box
+        if (box) {
+            if (value === 0) {
+                box.style.display = 'none'; // Oculta o box
+            } else {
+                box.style.display = 'block'; // Garante que o box seja exibido se tiver valor
+            }
+        }
+    }
+    // --- FIM DA LÓGICA DE VISIBILIDADE ---
 
-    // ATUALIZAÇÃO DO CAMPO TOTAL DE GASTOS
+
+    // ATUALIZAÇÃO DOS CAMPOS NÃO-BOXES
     document.getElementById('total-todos-meses').textContent = formatCurrency(totalGastosMesSelecionado); 
     
     // ATUALIZAÇÃO DO SALDO LÍQUIDO
@@ -660,7 +717,7 @@ function renderDashboard() {
     renderTable(sortedData, totalReceitas); 
 }
 
-// --- FUNÇÕES DE GRÁFICOS (MODIFICADA: renderMonthlyEvolutionChart) ---
+// --- FUNÇÕES DE GRÁFICOS (mantidas) ---
 
 function renderMonthlyEvolutionChart() {
     // 1. Agrupa Gasto Total Mensal (Projetado)
@@ -896,8 +953,13 @@ function renderPaymentMethodChart(data) {
     Plotly.react('grafico-pagamento', chartData, layout, {displayModeBar: false});
 }
 
-// --- FUNÇÃO DE RENDERIZAÇÃO DA TABELA (MODIFICADA: Recorrência) ---
+// --- FUNÇÃO DE RENDERIZAÇÃO DA TABELA (MODIFICADA: Alerta de Vencimento) ---
 function renderTable(data, totalReceitas) {
+
+
+    
+
+    
     const tableDiv = document.getElementById('tabela-gastos');
     let html = '<table><thead><tr>';
     
@@ -915,6 +977,7 @@ function renderTable(data, totalReceitas) {
         { key: 'observacao', label: 'Observação', sortable: false },
         { key: 'actions', label: 'Ações', sortable: false }
     ];
+    
 
     displayHeaders.forEach(h => {
         const direction = currentSortColumn === h.key ? (currentSortDirection === 1 ? ' ▲' : ' ▼') : '';
@@ -924,10 +987,46 @@ function renderTable(data, totalReceitas) {
 
     let totalValor = 0; 
 
+    // --- VARIÁVEIS PARA ALERTA DE VENCIMENTO ---
+    const today = new Date();
+    // Zera horas, minutos, segundos para garantir comparação correta do dia
+    today.setHours(0, 0, 0, 0); 
+    const limiteDiasAlerta = 7; // Alerta para vencimentos em 7 dias ou menos
+
     data.forEach((row, index) => {
         const statusValue = String(row.status || '').toLowerCase().trim();
         const statusClass = statusValue === 'pago' ? 'status-pago' : 'status-pendente';
-        html += `<tr class="${statusClass}" data-id="${row.id}">`;
+        
+        
+        let rowAlertClass = '';
+        
+        // 1. Lógica da Sinalização (apenas se for PENDENTE)
+        if (statusValue === 'pendente') {
+            
+            const vencimentoDia = parseInt(row.vencimento);
+            
+            if (vencimentoDia >= 1 && vencimentoDia <= 31) {
+                // Cria a data de vencimento no Mês/Ano atual (o mês é currentMonth - 1)
+                const vencimentoDate = new Date(CURRENT_YEAR, currentMonth - 1, vencimentoDia); 
+               // CORREÇÃO: Define o horário para 12:00
+               vencimentoDate.setHours(12, 0, 0, 0);
+                
+                const diffTime = vencimentoDate.getTime() - today.getTime();
+                const diasParaVencimento = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diasParaVencimento < 0) {
+                    // Item Vencido (Vencimento já passou, mas status é 'pendente')
+                    rowAlertClass = 'vencido'; 
+                } else if (diasParaVencimento <= limiteDiasAlerta) {
+                    // Item Próximo do Vencimento
+                    rowAlertClass = 'alerta-vencimento';
+                }
+            }
+        }
+
+        // Aplica as classes
+        html += `<tr class="${statusClass} ${rowAlertClass}" data-id="${row.id}">`;
+        
         
         displayHeaders.forEach(header => {
             let cellContent = '';
@@ -1084,7 +1183,7 @@ function updateRowDisplay(id, field, value) {
     }
 }
 
-// --- FUNÇÕES DE EXPORTAÇÃO ---
+// --- FUNÇÕES DE EXPORTAÇÃO (mantidas) ---
 
 // NOVO: Função para salvar APENAS o mês atual (Despesas e Receitas)
 function saveCurrentMonthData() {
@@ -1221,4 +1320,3 @@ function downloadCSV(csvContent, filename) {
     link.click();
     document.body.removeChild(link);
 }
-

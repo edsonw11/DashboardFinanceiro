@@ -192,10 +192,11 @@ header {
 /* Painéis de Totais: 6 Colunas */
 .summary-grid {
     display: grid;
+    /* Garante 6 colunas de largura igual */
     grid-template-columns: repeat(6, 1fr); 
-    gap: 5px;
-    margin-bottom: 10px;
-    width: 100%;
+    gap: 5px; /* Mantenha o espaçamento mínimo para maximizar a largura */
+    margin-bottom: 20px;
+    width: 100%; 
 }
 .summary-value {
     /* Diminua o valor de 'font-size' para o desejado. */
@@ -428,4 +429,43 @@ h2 {
     color: white;
     font-weight: bold;
     box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+
+
+/* No seu arquivo styles.css */
+
+.alerta-vencimento {
+    background-color: #fff3cd !important; /* Amarelo suave */
+    border-left: 5px solid #ffc107;      /* Barra lateral amarela */
+}
+
+.vencido {
+    background-color: #f8d7da !important; /* Vermelho suave */
+    border-left: 5px solid #dc3545;      /* Barra lateral vermelha */
+}
+
+.summary-box {
+    /* Garante que o box se adapte e tenha uma altura mínima consistente */
+    display: flex;
+    flex-direction: column; /* Organiza os itens (h3 e div) na vertical */
+    
+    /* Centraliza o conteúdo (o h3 e o div .summary-value) no meio do box */
+    align-items: center; 
+    justify-content: center; /* Tenta centralizar, mesmo com altura variável */
+    
+    /* Adicione estas propriedades se não existirem */
+    min-height: 100px; /* Garante uma altura mínima para todos os boxes */
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    text-align: center; /* Centraliza o texto do título */
+}
+
+/* Opcional: Garanta que o Valor esteja centralizado horizontalmente */
+.summary-box .summary-value {
+    /* ... (mantenha os ajustes de font-size que fizemos) ... */
+    text-align: center; /* Garante que o valor fique centrado no espaço disponível */
+    width: 100%; /* Ocupa toda a largura para o centralizar funcionar */
+    /* ... */
 }
