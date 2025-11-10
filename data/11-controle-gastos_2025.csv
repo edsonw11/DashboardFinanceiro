@@ -19,4 +19,4 @@ Carne;30;200;Pago;Mensal;Essencial;Estimativa;Pix;11
 Corte Cabelo;30;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;11
 Almoço Sabado;30;100;Pendente;Anual;Não Essencial;Estimativa;Pix;11
 IPTU;30;150;Pago;Anual;Essencial;Vencimento em Janeiro;Pix;11
-calça;30;91;Pago;Mensal;Essencial;Adicionado via dashboard;Pix;11
+calça;30;91;Pago;Única;Essencial;Adicionado via dashboard;Pix;11

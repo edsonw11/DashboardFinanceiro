@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Gestão Financeira Completa</title>
+
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.0/papaparse.min.js"></script>
+    <link rel="stylesheet" href="styles.css">
+  
+</head>
+<body>
+    <header>
+        <h1>💵 Dashboard de Gestão Financeira Completa</h1>
+    </header>
+
+    <div class="container">
+        <div class="controls">
+             <div class="dropdown">
+                <button class="save-all-btn" id="save-dropdown-btn"> 
+                    💾 Salvar Dados (Opções) ▼
+                </button>
+                <div class="dropdown-content">
+                    <a href="#" id="save-current-month">Salvar Apenas Mês Atual</a>
+                    <a href="#" id="save-all-months">Salvar Todos os Meses (24 Arquivos)</a>
+                </div>
+            </div>
+            
+            <button class="import-btn" id="import-csv-btn">
+                📤 Importar Novo CSV
+            </button>
+             <input type="file" id="file-input" accept=".csv" multiple style="display: none;">
+        </div>
+        
+        <div class="main-two-col-grid">
+            
+            <div id="revenue-container">
+                <div class="revenue-summary">
+                    <h3 id="titulo-total-receitas">Total de Receitas (Mês Selecionado)</h3> 
+                    <div class="revenue-value" id="total-receitas">R$ 0,00</div>
+                </div>
+                
+                <div class="chart-box">
+                    <h2>💰 Adicionar/Gerenciar Receitas</h2>
+                    <form id="add-revenue-form" class="form-grid">
+                        <div style="grid-column: span 4;"><label for="new-rev-fonte">Fonte:</label><input type="text" id="new-rev-fonte" required></div>
+                        <div style="grid-column: span 3;"><label for="new-rev-valor">Valor (R$):</label><input type="number" id="new-rev-valor" step="0.01" required></div>
+                        <div style="grid-column: span 2;"><label for="new-rev-status">Status:</label><select id="new-rev-status" required><option value="Recebido">Recebido</option><option value="Pendente">Pendente</option></select></div>
+                        <div style="grid-column: span 2;"><label for="new-rev-recorrencia">Recorrência:</label><select id="new-rev-recorrencia" required><option value="Mensal">Mensal</option><option value="Única">Única</option></select></div>
+                        <div style="grid-column: 13 / 14;"><label>&nbsp;</label><button type="submit" style="background-color: #28a745; color: white; border: none; padding: 10px 15px;">Adicionar Receita</button></div>
+                    </form>
+                    <div id="receitas-list">
+                        </div>
+                </div>
+            </div>
+            
+            <div class="summary-box" style="border-top: 5px solid #007bff; display: flex; flex-direction: column; justify-content: center; text-align: center;">
+                <h3 id="titulo-saldo-liquido" style="color: #007bff; margin-bottom: 10px;">Saldo Líquido (Mês)</h3> 
+                <div class="summary-value" id="saldo-liquido" style="font-size: 3em;">R$ 0,00</div>
+                
+                <hr style="width: 80%; border: 1px solid #eee;">
+                
+                <h3 id="titulo-total-gastos" style="color: #dc3545; margin-top: 20px; margin-bottom: 10px;">Total de Gastos (Mês Selecionado)</h3> 
+                <div class="summary-value summary-total" id="total-todos-meses" style="font-size: 2em; color: #dc3545;">R$ 0,00</div>
+            </div>
+            
+        </div>
+        
+        <hr>
+
+        <div id="add-expense-section">
+             <h2>➖ Adicionar Nova Despesa</h2>
+             <form id="add-expense-form" class="form-grid">
+                <div><label for="new-categoria">Categoria:</label><input type="text" id="new-categoria" required></div>
+                <div><label for="new-valor">Valor (R$):</label><input type="number" id="new-valor" step="0.01" required></div>
+                <div><label for="new-vencimento">Vencimento (Dia):</label><input type="number" id="new-vencimento" min="1" max="31" value="30" required></div>
+                
+                <div><label for="new-tipo">Tipo de Gasto:</label><select id="new-tipo" required><option value="Essencial">Essencial</option><option value="Nao Essencial">Não Essencial</option></select></div>
+                
+                <div>
+                    <label for="new-cartao">Tipo Pagamento:</label>
+                    <select id="new-cartao" required>
+                        <option value="Cartao">Cartão</option>
+                        <option value="Pix">Pix</option>
+                        <option value="Debito Automatico">Débito Automático</option>
+                        <option value="Boleto">Boleto</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                
+                <div><label for="new-recorrencia">Recorrência:</label>
+                    <select id="new-recorrencia" required>
+                        <option value="Mensal">Mensal</option>
+                        <option value="Anual">Anual</option>
+                        <option value="Única">Única</option>
+                    </select>
+                </div>
+                <button type="submit">Adicionar Despesa</button>
+            </form>
+        </div>
+        
+        <div class="summary-grid">
+            <div class="summary-box total-mensal-box">
+                <h3>Total de Gastos Mensais</h3> 
+                <div class="summary-value summary-mensal" id="total-mensal">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-pago">
+                <h3>Total Pago (Mês)</h3> 
+                <div class="summary-value summary-pago" id="total-pago">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-cartao">
+                <h3>Total Cartão</h3> 
+                <div class="summary-value summary-cartao" id="total-cartao">R$ 0,00</div>
+            </div>
+            
+            <div class="summary-box total-debito">
+                <h3>Total Débito</h3> 
+                <div class="summary-value summary-debito" id="total-debito">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-pix">
+                <h3>Total Pix</h3> 
+                <div class="summary-value summary-pix" id="total-pix">R$ 0,00</div>
+            </div>
+            <div class="summary-box total-outros">
+                 <h3>Total Outros</h3> 
+                 <div class="summary-value summary-outros" id="total-outros">R$ 0,00</div>
+            </div>
+        </div>
+        
+        <div class="chart-box full-width-section-1col">
+            <h2 id="titulo-evolucao-mensal">📈 Evolução de Gastos Mensais (Ano Atual)</h2>
+            <div id="grafico-evolucao-mensal"></div>
+        </div>
+        
+        <div class="chart-grid">
+            
+            <div class="chart-box">
+                <h2 id="titulo-essencial">Essencial vs. Não Essencial (Mês Selecionado)</h2> 
+                <div id="grafico-essencial"></div>
+            </div>
+            
+            <div class="chart-box">
+                <h2 style="color: #007bff;" id="titulo-pagamento">Meio de Pagamento (Mês Selecionado)</h2>
+                <div id="grafico-pagamento"></div>
+            </div>
+        </div>
+
+        <div class="chart-grid">
+            
+            <div class="table-box full-width-section-2col">
+                <h2>Controle de Contas</h2>
+                
+                <div id="month-selector" class="month-selector">
+                    </div>
+
+                <div id="tabela-gastos"></div>
+            </div>
+            
+            <div class="accordion-item full-width-section-2col">
+                <details>
+                    <summary>
+                        📊 Proporção por Categoria (Ranking - Clique para Expandir)
+                    </summary>
+                    <div class="chart-content">
+                        <div id="grafico-categoria"></div>
+                    </div>
+                </details>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+
+
+</body>
+</html>
