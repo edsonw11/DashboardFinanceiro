@@ -503,7 +503,13 @@
                     </select>
                 </div>
                 
-                <div><label for="new-recorrencia">Recorrência:</label><select id="new-recorrencia" required><option value="Mensal">Mensal</option><option value="Anual">Anual</option></select></div>
+                <div><label for="new-recorrencia">Recorrência:</label>
+                    <select id="new-recorrencia" required>
+                        <option value="Mensal">Mensal</option>
+                        <option value="Anual">Anual</option>
+                        <option value="Única">Única</option>
+                    </select>
+                </div>
                 <button type="submit">Adicionar Despesa</button>
             </form>
         </div>
@@ -672,7 +678,7 @@
             
             if (s === 'nao essencial') return 'Não Essencial';
             if (s === 'debito automatico' || s === 'debitoautomatico') return 'Débito Automático';
-            if (s === 'unica') return 'Única';
+            if (s === 'unica') return 'Única'; // Tratamento para "unica"
             if (s === 'recebido') return 'Recebido';
             if (s === 'pendente') return 'Pendente';
             if (s === 'cartao') return 'Cartão';
@@ -831,7 +837,20 @@
                             if (internalKey === 'tipo_gasto') {
                                 value = value.includes('nao') || value.includes('não') ? 'nao essencial' : 'essencial';
                             }
-                            // --- CORREÇÃO TIPO PAGAMENTO CARTÃO (Versão 7.2) ---
+                            // Mapeamento de Recorrência (INCLUINDO ÚNICA)
+                            if (internalKey === 'recorrencia') {
+                                let cleanRecurrence = value.toLowerCase().trim().replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                if (cleanRecurrence.includes('unica')) {
+                                    value = 'unica';
+                                } else if (cleanRecurrence.includes('mensal')) {
+                                    value = 'mensal';
+                                } else if (cleanRecurrence.includes('anual')) {
+                                    value = 'anual';
+                                } else {
+                                    value = 'mensal'; // Default
+                                }
+                            }
+                            // Mapeamento de Cartão
                             if (internalKey === 'cartao') {
                                 let cleanPayment = value.toLowerCase().trim().replace(/ /g, '').normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
@@ -844,10 +863,8 @@
                                 } else if (cleanPayment.includes('boleto')) {
                                     value = 'boleto';
                                 } else {
-                                    value = 'outros'; // Catch-all para strings vazias ou inválidas
+                                    value = 'outros'; 
                                 }
-                                
-                                // O valor final já está ajustado acima.
                             }
                         }
                     } else { // Receita
@@ -1000,7 +1017,8 @@
         function addExpense(event) {
             event.preventDefault();
             
-            const recorrencia = document.getElementById('new-recorrencia').value.toLowerCase().trim();
+            // Tratamento de Recorrência para string interna (unica, mensal, anual)
+            const recorrencia = document.getElementById('new-recorrencia').value.toLowerCase().trim().replace('ú', 'u').replace(/ /g, '');
             const tipoPagamento = document.getElementById('new-cartao').value; 
             let tipo_gasto = document.getElementById('new-tipo').value.toLowerCase().trim();
             
@@ -1058,7 +1076,7 @@
                 } else if (field === 'valor' || field === 'vencimento') {
                     item[field] = parseFloat(newValue) || 0;
                 } else if (field === 'status' || field === 'recorrencia') {
-                    item[field] = cleanedValue.toLowerCase().trim().replace(/ /g, '');
+                    item[field] = cleanedValue.toLowerCase().trim().replace(/ /g, '').replace('ú', 'u'); // Limpeza da Recorrência
                 } else if (field === 'cartao') {
                     item[field] = cleanedValue.toLowerCase().trim().replace(/ /g, '');
                 } else {
@@ -1094,6 +1112,7 @@
             // Calcula o total do mês (excluindo anuais) para o SUMÁRIO
             const monthlyData = filteredExpenses.filter(d => {
                 const recurrence = String(d.recorrencia || '').toLowerCase().trim();
+                // O total mensal deve incluir MENSAL e ÚNICA, mas NÃO ANUAL.
                 return recurrence !== 'anual';
             });
             
@@ -1115,6 +1134,7 @@
                         const aRecurrence = String(a.recorrencia).toLowerCase().trim();
                         const bRecurrence = String(b.recorrencia).toLowerCase().trim();
                         
+                        // % do gasto mensal apenas para despesas não-anuais
                         const aValue = aRecurrence !== 'anual' ? a.valor : 0;
                         const bValue = bRecurrence !== 'anual' ? b.valor : 0;
 
@@ -1163,7 +1183,7 @@
             document.getElementById('titulo-total-gastos').textContent = `Total de Gastos (${monthName})`;
 
 
-            // Usa monthlyData (despesas do mês atual, excluindo anuais)
+            // monthlyData: despesas do mês atual, excluindo anuais (usado para painéis e gráficos do mês)
             const monthlyData = rawData.filter(d => {
                 const recurrence = String(d.recorrencia || '').toLowerCase().trim();
                 return parseInt(d.mes) === currentMonth && recurrence !== 'anual';
@@ -1172,9 +1192,7 @@
             const totalMensal = totalMonthlyExpenses;
             const totalPago = monthlyData.filter(d => String(d.status || '').toLowerCase().trim() === 'pago').reduce((sum, d) => sum + d.valor, 0);
             
-            // CÁLCULOS DO TIPO PAGAMENTO - CORREÇÃO APLICADA AQUI (V 7.3)
-            // Usando o bloco de filtro completo para garantir a correta string 'cartao'
-            
+            // CÁLCULOS DO TIPO PAGAMENTO
             const totalCartao = monthlyData.filter(d => {
                 const cartaoType = String(d.cartao || '').toLowerCase().trim();
                 return cartaoType === 'cartao';
@@ -1196,9 +1214,8 @@
                 return cartao === 'outros' || cartao === 'boleto';
             }).reduce((sum, d) => sum + d.valor, 0);
             
-            // FIM DO BLOCO DE CÁLCULOS CORRIGIDO
             
-            // Total de gastos do MÊS SELECIONADO (incluindo anuais)
+            // Total de gastos do MÊS SELECIONADO (incluindo anuais, usado para cálculo de saldo)
             const totalGastosMesSelecionado = rawData.filter(d => parseInt(d.mes) === currentMonth).reduce((sum, d) => sum + d.valor, 0);
 
             const totalReceitas = totalReceivedRevenue; // Receitas recebidas do MÊS SELECIONADO
@@ -1239,7 +1256,7 @@
                 const mes = parseInt(d.mes);
                 const recorrencia = String(d.recorrencia || '').toLowerCase().trim();
 
-                if (mes >= 1 && mes <= 12 && recorrencia !== 'anual') {
+                if (mes >= 1 && mes <= 12 && recorrencia !== 'anual') { // Exclui apenas ANUAL
                     // Total Projetado (Linha Vermelha)
                     monthlyTotalTotals[mes - 1] += d.valor;
                     
@@ -1258,7 +1275,7 @@
                 y: monthlyTotalTotals,
                 mode: 'lines+markers',
                 type: 'scatter',
-                name: 'Total Projetado',
+                name: 'Total Projetado (Mensal + Única)',
                 line: { color: '#dc3545', width: 3 }, 
                 marker: { size: 10, color: '#dc3545', line: { width: 1, color: 'white' } },
                 hovertemplate: '<b>%{x}</b><br>Total Projetado: R$ %{y:,.2f}<extra></extra>'
@@ -1270,7 +1287,7 @@
                 y: monthlyPaidTotals,
                 mode: 'lines+markers',
                 type: 'scatter',
-                name: 'Total Pago',
+                name: 'Total Pago (Mensal + Única)',
                 line: { color: '#28a745', width: 3, dash: 'dot' }, 
                 marker: { size: 10, color: '#28a745', line: { width: 1, color: 'white' } },
                 hovertemplate: '<b>%{x}</b><br>Total Pago: R$ %{y:,.2f}<extra></extra>'
@@ -1463,7 +1480,7 @@
             Plotly.react('grafico-pagamento', chartData, layout, {displayModeBar: false});
         }
         
-        // --- FUNÇÃO DE RENDERIZAÇÃO DA TABELA (mantida) ---
+        // --- FUNÇÃO DE RENDERIZAÇÃO DA TABELA (MODIFICADA: Recorrência) ---
         function renderTable(data, totalReceitas) {
             const tableDiv = document.getElementById('tabela-gastos');
             let html = '<table><thead><tr>';
@@ -1506,12 +1523,14 @@
                     } else if (header.key === 'valor') {
                         cellContent = `<span class="editable-cell" onclick="makeEditable(${row.id}, '${header.key}', 'number', 2)">${formatCurrency(rowValue)}</span>`;
                         
+                        // Soma apenas despesas mensais e unicas para o rodapé (exclui anuais)
                         if(String(row.recorrencia).toLowerCase().trim() !== 'anual') {
                             totalValor += rowValue; 
                         }
                         
                     } else if (header.key === 'percentual') {
                         let percentage = 0;
+                         // Calcula % em relação ao total mensal (exclui anuais)
                          if (totalMonthlyExpenses > 0 && String(row.recorrencia).toLowerCase().trim() !== 'anual') {
                             percentage = (row.valor / totalMonthlyExpenses) * 100;
                         }
@@ -1535,10 +1554,8 @@
                         ];
                         
                         let selectOptions = paymentOptions.map(opt => {
-                            // Mapeamento especial para o valor do select (interno)
                             let selectValue = opt.toLowerCase().replace(/ /g, '').replace('á', 'a').replace('é', 'e');
                             
-                            // Correção para o mapeamento interno
                             if (opt === 'Cartão') selectValue = 'cartao';
                             if (opt === 'Débito Automático') selectValue = 'debitoautomatico';
                             if (opt === 'Pix') selectValue = 'pix';
@@ -1557,7 +1574,12 @@
                         `;
                     } 
                     else if (header.key === 'recorrencia') {
-                        cellContent = `<select class="recorrencia-select" data-id="${row.id}" data-field="${header.key}"><option value="Mensal" ${value === 'mensal' ? 'selected' : ''}>Mensal</option><option value="Anual" ${value === 'anual' ? 'selected' : ''}>Anual</option><option value="Única" ${value.includes('unica') ? 'selected' : ''}>Única</option></select>`;
+                        // NOVO: Adiciona 'Única' na lista de opções
+                        cellContent = `<select class="recorrencia-select" data-id="${row.id}" data-field="${header.key}">
+                            <option value="mensal" ${value === 'mensal' ? 'selected' : ''}>Mensal</option>
+                            <option value="anual" ${value === 'anual' ? 'selected' : ''}>Anual</option>
+                            <option value="unica" ${value === 'unica' ? 'selected' : ''}>Única</option>
+                        </select>`;
                     } else if (header.key === 'status') {
                         cellContent = `<span class="status-toggle-span" data-id="${row.id}">${capitalize(row.status)}</span>`;
                     } else if (header.key === 'tipo_gasto') {
@@ -1710,8 +1732,12 @@
 
                     if (internalKey === 'valor') {
                         value = String(value).replace('.', ','); 
-                    } else if (['status', 'recorrencia', 'tipo_gasto', 'cartao'].includes(internalKey)) {
+                    } else if (['status', 'tipo_gasto', 'cartao'].includes(internalKey)) {
                         value = capitalize(value);
+                    } else if (internalKey === 'recorrencia') {
+                        // Tratamento específico para recorrência
+                        value = capitalize(value);
+                        if (value === 'Unica') value = 'Única'; // Mantém o acento na exportação
                     } else if (typeof value === 'string') {
                         value = value.includes(';') ? `"${value}"` : value;
                     }
@@ -1747,8 +1773,11 @@
 
                     if (internalKey === 'valor') {
                         value = String(value).replace('.', ',');
-                    } else if (['status', 'recorrencia'].includes(internalKey)) {
+                    } else if (['status'].includes(internalKey)) {
                         value = capitalize(value);
+                    } else if (internalKey === 'recorrencia') {
+                        value = capitalize(value);
+                        if (value === 'Unica') value = 'Única';
                     } else if (typeof value === 'string') {
                         value = value.includes(';') ? `"${value}"` : value;
                     }
