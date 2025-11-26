@@ -1,6 +1,6 @@
 // --- VARIÁVEIS DE ESTADO ---
 let rawData = []; // Armazena dados de despesas de TODOS os meses
-let rawRevenues = []; // Armazena dados de receitas de TODOS os meses
+let rawRevenues = []; // Armazena dados de receitas de TODOS os mesescarregarDadosIniciais
 let sortedData = [];
 let totalFilesProcessed = 0;
 let filesSuccessfullyLoaded = 0;
@@ -33,8 +33,15 @@ const REVENUE_COLUMN_NAMES = {
     'mes': 'Mês' 
 };
 
+// --- VARIÁVEIS DE ESTADO PARA INVESTIMENTO ---
+let dadosInvestimentos = {}; 
+const STORAGE_KEY_APORTE = 'minhaAppInvestimentosData';
+
+
 // --- INICIALIZAÇÃO (MODIFICADA) ---
 document.addEventListener('DOMContentLoaded', () => {
+
+
     
     // NOVO: Eventos para o Dropdown Salvar
     document.getElementById('save-current-month').addEventListener('click', (e) => {
@@ -48,6 +55,8 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const importButton = document.getElementById('import-csv-btn');
     const fileInput = document.getElementById('file-input');
+
+    initializeDashboardData();
     
     if (importButton && fileInput) {
         importButton.addEventListener('click', () => fileInput.click()); 
@@ -61,6 +70,32 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('add-expense-form').addEventListener('submit', addExpense);
     document.getElementById('add-revenue-form').addEventListener('submit', addRevenue); 
+
+
+    // 1. Encontra o elemento <details> que contém o gráfico de Evolução de Gastos
+    const graficoEvolucaoDiv = document.getElementById('grafico-evolucao-mensal');
+    if (graficoEvolucaoDiv) {
+        // Encontra o ancestral mais próximo que é a tag <details>
+        const evolutionAccordion = graficoEvolucaoDiv.closest('details');
+
+        if (evolutionAccordion) {
+            // 2. Adiciona um listener para o evento 'toggle' (abrir/fechar)
+            evolutionAccordion.addEventListener('toggle', () => {
+                // Verifica se o accordion foi aberto (evolutionAccordion.open é true)
+                if (evolutionAccordion.open) {
+                    // Aguarda um pequeno delay (50ms) para garantir que o navegador
+                    // terminou de calcular as dimensões do container
+                    setTimeout(() => {
+                        // 3. Força o Plotly a recalcular e redesenhar o gráfico
+                        // Usamos Plotly.relayout com autosize: true
+                        if (typeof Plotly !== 'undefined') {
+                            Plotly.relayout('grafico-evolucao-mensal', { 'autosize': true });
+                        }
+                    }, 50); 
+                }
+            });
+        }
+    }
     
     setupMonthSelector(); 
     setupEventDelegation(); 
@@ -167,12 +202,17 @@ function processSelectedFiles(files) {
 
 
             if (fileCount === totalFilesProcessed) {
-                if (filesSuccessfullyLoaded > 0) {
-                    alert(`Importação concluída. ${totalFilesProcessed} arquivo(s) processado(s).`);
-                   
-                } else {
-                    alert(`Nenhum arquivo CSV compatível foi carregado. Certifique-se de que os arquivos têm o cabeçalho correto ("Categoria" ou "Fonte") e utilizam ponto e vírgula (;) como delimitador.`);
-                }
+                setTimeout(() => {
+                    if (rawData.length > 0 || rawRevenues.length > 0) {
+                        // Renderiza o dashboard APENAS APÓS A CONFIRMAÇÃO DE DADOS
+                        if (typeof processData === 'function') {
+                            processData(); 
+                        }
+                        alert(`Importação concluída! ${filesSuccessfullyLoaded} de ${totalFilesProcessed} arquivo(s) processado(s) com sucesso.`);
+                    } else {
+                        alert(`Importação concluída. Nenhum dado válido foi encontrado para processamento.`);
+                    }
+                }, 100);
                 processData();
             }
         });
@@ -249,8 +289,8 @@ function normalizeData(data, columnMap, isExpense) {
                 const vencimentoDia = parseInt(value) || 30;
                 newRow['vencimento_full_date'] = new Date(CURRENT_YEAR, currentMonth - 1, vencimentoDia);
                 value = vencimentoDia; // Mantém o dia do mês
-            } else if (internalKey === 'mes') { 
-                value = parseInt(value) || currentMonth; // Default para o mês atual
+            } else if (internalKey === 'mes' || internalKey === 'dia') { 
+                value = parseInt(value, 10) || currentMonth; // Default para o mês atual
             } else {
                 value = value ? String(value).trim() : '';
             }
@@ -309,10 +349,14 @@ function normalizeData(data, columnMap, isExpense) {
             newRow.tipo_gasto = newRow.tipo_gasto || 'essencial'; 
             newRow.cartao = newRow.cartao || 'outros';
             newRow.mes = newRow.mes || currentMonth; 
+            newRow.ano = CURRENT_YEAR;
+         
         } else { // Receita
             newRow.status = newRow.status || 'pendente';
             newRow.recorrencia = newRow.recorrencia || 'unica';
             newRow.mes = newRow.mes || currentMonth; 
+            newRow.ano = CURRENT_YEAR;
+      
         }
         
         return hasValidValue ? newRow : null;
@@ -713,13 +757,264 @@ function renderDashboard() {
     renderEssencialChart(monthlyData);
     renderPaymentMethodChart(monthlyData); 
     renderCategoryProportionChart(monthlyData);
-    
+  
     renderTable(sortedData, totalReceitas); 
 }
 
 // --- FUNÇÕES DE GRÁFICOS (mantidas) ---
 
 function renderMonthlyEvolutionChart() {
+
+    // A função getMonthlyExpenseComparisonData() não é mais usada para o *plot*,
+    // mas pode ser mantida para buscar os tooltips, se necessário.
+    const dataGastos = getMonthlyExpenseComparisonData();
+    
+    const graficoDiv = document.getElementById('grafico-evolucao-mensal');
+
+    if (!graficoDiv) {
+        console.warn('DIV do gráfico de Gastos (grafico-evolucao-mensal) não encontrada no HTML.');
+        return;
+    }
+
+    // 🚨 NOVO: Mapeia a lista de pendentes para o formato 2D que o Plotly espera
+    const pendingItemsCustomData = dataGastos.pendingLists.map(list => [list]);
+
+    // 1. Agrupa Gasto Total Mensal (Projetado) e Pago
+    const monthlyTotalTotals = Array(12).fill(0); 
+    const monthlyPaidTotals = Array(12).fill(0); 
+    
+    // Este loop usa os dados brutos (rawData) para calcular os totais mensais
+    rawData.forEach(d => {
+        // Assume que 'mes' é um número (1 a 12)
+        const mes = parseInt(d.mes);
+        const recorrencia = String(d.recorrencia || '').toLowerCase().trim();
+
+        // Verifica o mês e ignora a recorrência anual, se for o caso
+        if (mes >= 1 && mes <= 12 && recorrencia !== 'anual') { 
+            // Total Projetado (Linha Vermelha)
+            monthlyTotalTotals[mes - 1] += d.valor;
+            
+            // Total Pago (Linha Verde)
+            if (String(d.status || '').toLowerCase().trim() === 'pago') {
+                monthlyPaidTotals[mes - 1] += d.valor;
+            }
+        }
+    });
+    
+    const labels = MONTH_NAMES_SHORT.slice(0, 12); 
+
+  // 🚨 Calcula o que falta pagar (Total Projetado - Total Pago)
+const monthlyPendingTotals = monthlyTotalTotals.map((total, index) => {
+    // Certifique-se de que o resultado é 0 se for negativo (não deve acontecer, mas é seguro)
+    return Math.max(0, total - monthlyPaidTotals[index]); 
+});
+
+// 🚨 CORREÇÃO CRÍTICA: Mapear para uma estrutura 2D (Array de Arrays)
+// Plotly prefere [[valor1], [valor2], [valor3], ...] quando acessado via %{customdata[0]}
+const pendingCustomData = monthlyPendingTotals.map(valor => [valor]);
+    
+    if (monthlyTotalTotals.every(total => total === 0)) {
+        graficoDiv.innerHTML = '<p style="text-align: center; color: #6c757d;">Dados de gastos insuficientes para gerar a evolução mensal.</p>';
+        return;
+    }
+    
+    // --- 🚨 PASSO 2: CALCULAR A MÉDIA CORRETAMENTE COM OS NOVOS TOTAIS ---
+    // Filtra zeros para não distorcer a média (opcional, mas recomendado)
+    const gastosReais = monthlyTotalTotals.filter(g => g > 0);
+    const totalGasto = gastosReais.reduce((a, b) => a + b, 0);
+    const mediaGasto = totalGasto / gastosReais.length;
+
+
+    // Trace 1: Gasto Total Projetado (Vermelho)
+    const traceTotal = {
+        x: labels,
+        y: monthlyTotalTotals,
+        mode: 'lines+markers',
+        type: 'scatter',
+        name: 'Total Projetado (Mensal + Única)',
+        line: { color: '#dc3545', width: 3 }, 
+        marker: { size: 8, color: '#dc3545', line: { width: 1, color: 'white' } },
+        // 🚨 CORREÇÃO: ADICIONAR O TOOLTIP DETALHADO AQUI
+        hoverinfo: 'text', // Diz ao Plotly para usar a propriedade 'text'
+        text: dataGastos.tooltips, // O array que contém as descrições de variação
+        hovertemplate: 
+        '<b>Mês/Ano:</b> %{x}<br>' +
+        '<b>Gasto Total:</b> %{y:$.2f}<br>' + 
+        '<br>' +
+        '%{text}' + // Insere o texto detalhado (percentual + categorias)
+        '<extra></extra>' // Remove o nome do trace do tooltip
+        
+    };
+    
+    // Trace 2: Gasto Total Pago (Verde)
+    const tracePaid = {
+        x: labels,
+        y: monthlyPaidTotals,
+        mode: 'lines+markers',
+        type: 'scatter',
+        name: 'Total Pago (Mensal + Única)',
+        line: { color: '#28a745', width: 2, dash: 'dot' }, // Linha verde pontilhada
+        marker: { size: 8, color: '#28a745', line: { width: 1, color: 'white' } },
+        // Mantemos o hovertemplate simples para o Gasto Pago
+       // 🚨 ADICIONAR customdata: Passa o valor do Gasto Pendente (a pagar)
+        customdata: pendingItemsCustomData, 
+        
+        // 🚨 ATUALIZAR hovertemplate: Inclui o Gasto Pendente usando customdata[0]
+        hovertemplate: 
+            '<b>%{x}</b><br>' +
+            'Total Pago: R$ %{y:,.2f}<br>' + 
+            '<br><b>Itens Pendentes:</b><br>' + 
+            '%{customdata[0]}' + // Acessa a lista formatada com <br>
+            '<extra></extra>'
+    };
+
+    const layout = {
+        title: '📈 Evolução de Gastos Mensais (Ano Atual)',
+
+        legend: {
+            orientation: 'h',      // "horizontal" - Organiza os itens lado a lado
+            xanchor: 'center',     // Ancoragem X no centro
+            x: 0.5,                // Posição X (50% do gráfico)
+            yanchor: 'top',        // Ancoragem Y no topo (do espaço da legenda)
+            y: -0.2                // Posição Y (abaixo do gráfico, ajuste o valor se necessário)
+        },
+        // 🚨 Baseline de Média
+        shapes: [
+            {
+                type: 'line',
+                xref: 'paper', 
+                yref: 'y',
+                x0: 0, 
+                y0: mediaGasto, 
+                x1: 1, 
+                y1: mediaGasto, 
+                line: {
+                    color: '#007bff', 
+                    width: 1,
+                    dash: 'dash' 
+                }
+            }
+        ],
+        xaxis: { 
+            title: 'Mês/Ano',
+            tickmode: 'array',
+            tickvals: labels, // Usa os rótulos curtos
+            ticktext: labels
+        },
+        yaxis: { 
+            title: 'Valor (R$)',
+            rangemode: 'tozero'
+        },
+        margin: { t: 40, l: 40, r: 20, b: 60 },
+        hovermode: 'closest'
+    };
+
+
+    // 🚨 CORREÇÃO CRÍTICA: Renderiza AMBAS as linhas (traceTotal e tracePaid)
+    Plotly.newPlot(graficoDiv, [traceTotal, tracePaid], layout, { displayModeBar: false });
+
+    // Mantém a correção do redimensionamento
+    if (typeof Plotly !== 'undefined') {
+        Plotly.relayout('grafico-evolucao-mensal', { 'autosize': true });
+    }
+}
+
+function renderMonthlyEvolutionChartTMP() {
+
+    // Esta função já calcula a variação percentual e a explicação detalhada
+    const dataGastos = getMonthlyExpenseComparisonData();
+
+    const graficoDiv = document.getElementById('grafico-evolucao-mensal');
+
+    if (!graficoDiv) {
+        console.warn('DIV do gráfico de Gastos (grafico-evolucao-mensal) não encontrada no HTML.');
+        return;
+    }
+
+
+    if (dataGastos.gastos.length === 0) {
+        graficoDiv.innerHTML = '<p style="text-align: center; color: #6c757d;">Dados de gastos insuficientes para gerar a evolução mensal.</p>';
+        return;
+    }
+
+    // --- 🚨 PASSO 1: CALCULAR A MÉDIA ---
+    const totalGasto = dataGastos.gastos.reduce((a, b) => a + b, 0);
+    const mediaGasto = totalGasto / dataGastos.gastos.length;
+
+
+// Configura o Trace com os dados de tooltip
+const trace = {
+    x: dataGastos.meses,
+    y: dataGastos.gastos,
+    mode: 'lines+markers',
+    hoverinfo: 'text',
+    text: result.tooltips,
+    type: 'scatter',
+    name: 'Gasto Total',
+    line: { 
+        color: '#dc3545', // Cor do Gasto Total (Vermelho é comum para despesas)
+        width: 3 
+    },
+       // 🚨 Trace 2: Linha de Gasto Pago (VERDE)
+       
+        x: dataGastos.meses,
+        y: dataGastos.gastosPagos, 
+        name: 'Gasto Efetivamente Pago',
+        type: 'scatter',
+        mode: 'lines+markers',
+        hoverinfo: 'y', // Mostra apenas o valor Pago
+        line: { 
+            color: '#28a745', // Cor Verde
+            width: 2,
+            dash: 'dot' // Sugestão: linha pontilhada para diferenciar
+        },
+    
+ 
+    // 1. CRÍTICO: Usa o array de tooltips gerado pela função getMonthlyExpenseComparisonData
+    text: dataGastos.tooltips, 
+    
+    // 2. CRÍTICO: Define o template do tooltip personalizado
+    hovertemplate: 
+    '<b>Mês/Ano:</b> %{x}<br>' +
+    '<b>Gasto Total:</b> %{y:$.2f}<br>' + 
+    '<br>' +
+    '%{text}' + // Insere o texto detalhado (percentual + categorias)
+    '<extra></extra>'};
+
+    const layout = {
+        title: '📈 Evolução de Gastos Mensais (Ano Atual)',
+        // --- 🚨 PASSO 2: ADICIONAR A BASELINE COMO UMA SHAPE ---
+        shapes: [
+            {
+                type: 'line',
+                xref: 'paper', // Referência à largura total do gráfico (0 a 1)
+                yref: 'y',     // Referência aos valores do eixo Y
+                x0: 0, 
+                y0: mediaGasto, // Valor inicial da linha (a média)
+                x1: 1, 
+                y1: mediaGasto, // Valor final da linha (a média)
+                line: {
+                    color: '#007bff', // Azul, para contrastar com o vermelho
+                    width: 2,
+                    dash: 'dash' // Define a linha como tracejada
+                }
+            }
+        ],
+        xaxis: { 
+            title: 'Mês/Ano',
+            tickmode: 'array',
+            tickvals: dataGastos.meses,
+            ticktext: dataGastos.meses.map(m => MONTH_NAMES_SHORT[parseInt(m.split('-')[1]) - 1] + '/' + m.split('-')[0].slice(-2))
+        },
+        yaxis: { 
+            title: 'Valor (R$)',
+            rangemode: 'tozero'
+        },
+        margin: { t: 40, l: 40, r: 20, b: 60 },
+        hovermode: 'closest'
+    };
+
+
     // 1. Agrupa Gasto Total Mensal (Projetado)
     const monthlyTotalTotals = Array(12).fill(0); 
     // 2. Agrupa Gasto Pago Mensal
@@ -766,19 +1061,23 @@ function renderMonthlyEvolutionChart() {
         hovertemplate: '<b>%{x}</b><br>Total Pago: R$ %{y:,.2f}<extra></extra>'
     };
 
-    const layout = {
-        title: false, 
-        height: 350,
-        xaxis: { title: 'Mês', tickvals: labels, ticktext: labels },
-        yaxis: { title: 'Valor (R$)', tickformat: '$,.0f' },
-        margin: { t: 20, b: 50, l: 60, r: 20 },
-        hovermode: 'x unified',
-        legend: { orientation: 'h', x: 0.5, xanchor: 'center', y: 1.15 } 
-    };
+
+    Plotly.newPlot(graficoDiv, [trace], layout, { displayModeBar: false });
+
+
+
 
     // Renderiza ambas as linhas
-    Plotly.react('grafico-evolucao-mensal', [traceTotal, tracePaid], layout, {displayModeBar: false});
-}
+    //Plotly.react('grafico-evolucao-mensal', [traceTotal, tracePaid], layout, {displayModeBar: false});
+    Plotly.newPlot(graficoDiv, [trace], layout, { displayModeBar: false });
+
+    if (typeof Plotly !== 'undefined') {
+        Plotly.relayout('grafico-evolucao-mensal', { 'autosize': true });
+    }
+
+
+
+};
 
 function renderCategoryProportionChart(data) {
      const groupedData = data.reduce((acc, row) => {
@@ -1319,4 +1618,318 @@ function downloadCSV(csvContent, filename) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+}
+
+
+
+// ===================================
+// NOVO: LÓGICA DE COMPARAÇÃO MENSAL E TOOLTIP
+// ===================================
+
+/**
+ * Processa rawData para obter totais mensais, variação percentual 
+ * e os detalhes das categorias que mais contribuíram para a diferença.
+ */
+function getMonthlyExpenseComparisonDataTMP() {
+    // 1. Agrupar rawData por YYYY-MM e calcular o total e detalhes por categoria
+    const monthlyTotals = {};
+    const monthlyCategoryDetails = {};
+    const expensesByMonth = {};
+
+
+    // Note: rawData precisa estar definida no escopo global (o que já está)
+    rawData.forEach(d => {
+        // Assume o ano atual para simplificar, se 'ano' não for um campo em 'd'
+        // Se 'd' já tem ano, use d.ano. Assumindo que você usa o CURRENT_YEAR para dados sem ano explícito.
+        const ano = d.ano || CURRENT_YEAR; 
+        const mesChave = `${ano}-${String(d.mes).padStart(2, '0')}`;
+        
+        // Exclui recorrência anual para a evolução de gastos recorrentes/únicos
+        const recurrence = String(d.recorrencia || '').toLowerCase().trim();
+        if (recurrence === 'anual') return;
+
+        // Calcula total
+        monthlyTotals[mesChave] = (monthlyTotals[mesChave] || 0) + d.valor;
+
+        // Agrupa por categoria para análise de variação
+        if (!monthlyCategoryDetails[mesChave]) {
+            monthlyCategoryDetails[mesChave] = {};
+        }
+        // Usa 'categoria' para gastos
+        monthlyCategoryDetails[mesChave][d.categoria] = (monthlyCategoryDetails[mesChave][d.categoria] || 0) + d.valor;
+    });
+
+    // 2. Classifica os meses e calcula as diferenças/tooltips
+    const sortedKeys = Object.keys(monthlyTotals).sort();
+    const result = {
+        meses: [],
+        gastos: [],
+        gastosPagos: [],
+        tooltips: [] // Armazena o texto detalhado para o hover
+    };
+
+    let previousMonthTotal = 0;
+
+    for (let i = 0; i < sortedKeys.length; i++) {
+        const mesChave = sortedKeys[i];
+        const currentTotal = monthlyTotals[mesChave];
+        let currentPaidTotal = 0;
+
+
+        expenses.forEach(d => {
+            currentTotal += d.valor;
+            
+            // 🚨 CRÍTICO: Soma apenas se o status for 'pago'
+            if (d.status && d.status.toLowerCase() === 'pago') {
+                currentPaidTotal += d.valor;
+            }
+        });
+        
+        let diffExplanation = 'Primeiro mês com dados registrados.';
+        
+        if (i > 0) {
+            const previousMesChave = sortedKeys[i - 1];
+            
+            if (previousMonthTotal > 0) {
+                // Cálculo da diferença percentual
+                const percentDiff = ((currentTotal - previousMonthTotal) / previousMonthTotal) * 100;
+                
+                // --- Análise Detalhada da Diferença por Categoria ---
+                const prevCats = monthlyCategoryDetails[previousMesChave] || {};
+                const currCats = monthlyCategoryDetails[mesChave] || {};
+                
+                const categoryDifferences = {};
+                const allCategories = new Set([...Object.keys(prevCats), ...Object.keys(currCats)]);
+                
+                // Calcula a variação absoluta por categoria
+                allCategories.forEach(cat => {
+                    const diff = (currCats[cat] || 0) - (prevCats[cat] || 0);
+                    if (Math.abs(diff) > 0.01) {
+                        categoryDifferences[cat] = diff;
+                    }
+                });
+
+                // Classifica e pega os 3 principais contribuintes (em valor absoluto)
+                const sortedDiffs = Object.entries(categoryDifferences)
+                    .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+                    .slice(0, 3); 
+
+                let changeType = percentDiff >= 0 ? 'aumento' : 'redução';
+                let diffText = '';
+
+                if (Math.abs(percentDiff) < 0.1) {
+                     diffExplanation = 'Sem variação significativa.';
+                } else {
+                    diffText = `Variação: <b>${percentDiff.toFixed(2)}%</b> (${changeType} em relação ao mês anterior).<br><br>Principais contribuições:<br>`;
+                    
+                    if(sortedDiffs.length > 0) {
+                        sortedDiffs.forEach(([cat, diff]) => {
+                            const sign = diff >= 0 ? '+' : ''; 
+                            const action = diff >= 0 ? 'aumento' : 'redução';
+                            
+                            // capitalize() e formatCurrency() são funções auxiliares que já devem estar no seu script.js
+                            diffText += `• ${capitalize(cat)}: ${sign}${formatCurrency(diff)} (${action})<br>`;
+                        });
+                    } else {
+                        diffText += 'Ajustes pequenos em múltiplas categorias.';
+                    }
+                    
+                    diffExplanation = diffText;
+                }
+            } else if (currentTotal > 0) {
+                 diffExplanation = 'Gasto registrado. Mês anterior zerado.';
+            } else {
+                diffExplanation = 'Sem variação.';
+            }
+        }
+        
+        // Armazena os resultados
+        result.meses.push(mesChave);
+        result.gastos.push(currentTotal);
+        result.tooltips.push(diffExplanation);
+        result.gastosPagos.push(currentPaidTotal);
+
+
+        previousMonthTotal = currentTotal;
+    }
+
+    return result;
+}
+
+function getMonthlyExpenseComparisonData() {
+    // 1. Inicializações
+    const monthlyTotals = {};
+    const monthlyCategoryDetails = {};
+    const expensesByMonth = {}; // Objeto para armazenar as despesas por mês (usado para checar "pago")
+
+    // Note: rawData precisa estar definida no escopo global
+    rawData.forEach(d => {
+        // Assume o ano atual para simplificar, se 'ano' não for um campo em 'd'
+        const ano = d.ano || CURRENT_YEAR; 
+        const mesChave = `${ano}-${String(d.mes).padStart(2, '0')}`;
+        
+        // Exclui recorrência anual para a evolução de gastos recorrentes/únicos
+        const recurrence = String(d.recorrencia || '').toLowerCase().trim();
+        if (recurrence === 'anual') return;
+
+        // Calcula total (Projetado)
+        monthlyTotals[mesChave] = (monthlyTotals[mesChave] || 0) + d.valor;
+
+        // 🚨 CRÍTICO: Popular expensesByMonth
+        if (!expensesByMonth[mesChave]) {
+             expensesByMonth[mesChave] = [];
+        }
+        expensesByMonth[mesChave].push(d); 
+
+        // Agrupa por categoria para análise de variação (mantido no primeiro loop para ser mais eficiente)
+        if (!monthlyCategoryDetails[mesChave]) {
+            monthlyCategoryDetails[mesChave] = {};
+        }
+        monthlyCategoryDetails[mesChave][d.categoria] = (monthlyCategoryDetails[mesChave][d.categoria] || 0) + d.valor;
+    }); // <<<< FIM CORRETO DO LOOP rawData.forEach
+
+    // 2. Classifica os meses e calcula as diferenças/tooltips
+    const sortedKeys = Object.keys(monthlyTotals).sort();
+    const result = {
+        meses: [],
+        gastos: [],
+        gastosPagos: [],
+        tooltips: [], 
+        pendingLists: [] // Array para a lista de pendentes
+    };
+
+    let previousMonthTotal = 0;
+
+    for (let i = 0; i < sortedKeys.length; i++) {
+        const mesChave = sortedKeys[i];
+        const currentTotal = monthlyTotals[mesChave]; // Gasto TOTAL do mês (já calculado)
+        let currentPaidTotal = 0;
+
+        // Pega todas as despesas do mês
+        const expensesOfMonth = expensesByMonth[mesChave] || [];
+        let pendingItemsList = []; // Array temporário para os itens pendentes do mês
+
+        // Itera sobre as despesas do mês para calcular Pago/Pendente
+        expensesOfMonth.forEach(d => {
+            if (d.status && d.status.toLowerCase() === 'pago') {
+                currentPaidTotal += d.valor;
+            } else {
+                // Formata e armazena o item pendente
+                const formattedValue = formatCurrency(d.valor); 
+                pendingItemsList.push(`• ${capitalize(d.categoria)} (R$ ${formattedValue})`);
+            }
+        });
+        
+        // --- Lógica de cálculo de diffExplanation (Variação com Mês Anterior) ---
+        
+        let diffExplanation = 'Primeiro mês com dados registrados.';
+        
+        if (i > 0) {
+            const previousMesChave = sortedKeys[i - 1];
+            
+            if (previousMonthTotal > 0) {
+                // Cálculo da diferença percentual
+                const percentDiff = ((currentTotal - previousMonthTotal) / previousMonthTotal) * 100;
+                
+                // --- Análise Detalhada da Diferença por Categoria ---
+                const prevCats = monthlyCategoryDetails[previousMesChave] || {};
+                const currCats = monthlyCategoryDetails[mesChave] || {};
+                
+                const categoryDifferences = {};
+                const allCategories = new Set([...Object.keys(prevCats), ...Object.keys(currCats)]);
+                
+                // Calcula a variação absoluta por categoria
+                allCategories.forEach(cat => {
+                    const diff = (currCats[cat] || 0) - (prevCats[cat] || 0);
+                    if (Math.abs(diff) > 0.01) {
+                        categoryDifferences[cat] = diff;
+                    }
+                });
+
+                // Classifica e pega os 3 principais contribuintes (em valor absoluto)
+                const sortedDiffs = Object.entries(categoryDifferences)
+                    .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
+                    .slice(0, 3); 
+
+                let changeType = percentDiff >= 0 ? 'aumento' : 'redução';
+                let diffText = '';
+
+                if (Math.abs(percentDiff) < 0.1) {
+                     diffExplanation = 'Sem variação significativa.';
+                } else {
+                     diffText = `Variação: <b>${percentDiff.toFixed(2)}%</b> (${changeType} em relação ao mês anterior).<br><br>Principais contribuições:<br>`;
+                    
+                     if(sortedDiffs.length > 0) {
+                        sortedDiffs.forEach(([cat, diff]) => {
+                            const sign = diff >= 0 ? '+' : ''; 
+                            const action = diff >= 0 ? 'aumento' : 'redução';
+                            
+                            diffText += `• ${capitalize(cat)}: ${sign}${formatCurrency(diff)} (${action})<br>`;
+                        });
+                     } else {
+                         diffText += 'Ajustes pequenos em múltiplas categorias.';
+                     }
+                    
+                     diffExplanation = diffText;
+                }
+            } else if (currentTotal > 0) {
+                 diffExplanation = 'Gasto registrado. Mês anterior zerado.';
+            } else {
+                diffExplanation = 'Sem variação.';
+            }
+        }
+        
+        // Armazena os resultados no objeto final (result)
+        result.meses.push(mesChave);
+        result.gastos.push(currentTotal);
+        result.tooltips.push(diffExplanation);
+        result.gastosPagos.push(currentPaidTotal);
+
+        // Armazena a lista formatada final de pendentes
+        if (pendingItemsList.length > 0) {
+            result.pendingLists.push(pendingItemsList.join('<br>'));
+        } else {
+            result.pendingLists.push('Nenhum item pendente.');
+        }
+
+        previousMonthTotal = currentTotal;
+    }
+
+    return result;
+}
+
+// ===================================
+// FUNÇÃO DE INICIALIZAÇÃO DE DADOS (PARA DADOS REAIS)
+// ===================================
+
+function initializeDashboardData() {
+    // 1. Lógica de Carregamento de Dados (Reais)
+    // É CRÍTICO que suas funções de carregamento de despesas e receitas do 
+    // LocalStorage (ou outro local) sejam chamadas AQUI e preencham o 'rawData' e 'rawRevenues'.
+
+    // Exemplo: Chame suas funções de carregamento aqui.
+    // Ex: loadAllExpensesFromLocalStorage(); 
+    // Ex: loadAllRevenuesFromLocalStorage();
+    
+    // Assumindo que você tem uma função para carregar investimentos
+    if (typeof carregarDadosInvestimentos === 'function') {
+        carregarDadosInvestimentos(); 
+    }
+
+    // 2. Chama a função principal de processamento para calcular e desenhar o dashboard
+    if (typeof processData === 'function') {
+        processData();
+    }
+}
+
+
+function carregarDadosInvestimentos() {
+    const dadosSalvos = localStorage.getItem(STORAGE_KEY_APORTE);
+    if (dadosSalvos) {
+        // Converte a string JSON de volta para objeto
+        dadosInvestimentos = JSON.parse(dadosSalvos);
+    } else {
+        // Inicializa o objeto se não houver dados salvos
+        dadosInvestimentos = {};
+    }
 }

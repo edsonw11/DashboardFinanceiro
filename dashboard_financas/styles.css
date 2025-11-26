@@ -469,3 +469,10 @@ h2 {
     width: 100%; /* Ocupa toda a largura para o centralizar funcionar */
     /* ... */
 }
+
+
+/* Adicione (ou ajuste) a altura para o contêiner do gráfico de evolução */
+#grafico-evolucao-mensal {
+ /* Define uma altura FIXA. O valor deve ser a altura 'bacana' que você viu. */
+ height: 380px; /* Altere este valor se 380px não for a altura desejada */
+}
