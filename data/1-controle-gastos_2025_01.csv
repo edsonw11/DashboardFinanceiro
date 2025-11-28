@@ -1,16 +1,16 @@
 Categoria;Vencimento (Dia do Mês);Valor (R$);Status;Recorrência;Tipo de Gasto;Observação;Tipo Pagamento;Mês
-Energia;7;200;Pendente;Mensal;Essencial;Dia fixo 7;Debitoautomatico;1
-Inter Cell;7;30;Pendente;Mensal;Essencial;Dia fixo 7;Debitoautomatico;1
-Academia;7;13;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
-Veroo Cafes;7;48;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
-YoutubePremium;7;27;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
-Clube Smiles;7;47;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
-Ingles;7;340;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
-Internet Mae;10;40;Pendente;Mensal;Essencial;Dia fixo 10;Pix;1
-Internet Casa;21;13;Pendente;Mensal;Essencial;Dia fixo 21;Debitoautomatico;1
-Condominio;25;880;Pendente;Mensal;Essencial;Dia fixo 25;Pix;1
-Mercado;30;1200;Pendente;Mensal;Essencial;Estimativa (fim do mês);Pix;1
-Ovos;30;90;Pendente;Mensal;Essencial;Estimativa;Pix;1
-Carne;30;200;Pendente;Mensal;Essencial;Estimativa;Pix;1
-Corte Cabelo;30;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;1
-IPTU;30;150;Pendente;Anual;Essencial;Vencimento em Janeiro;Pix;1
+Energia;7;200;Pago;Mensal;Essencial;Dia fixo 7;Debitoautomatico;1
+Inter Cell;7;30;Pago;Mensal;Essencial;Dia fixo 7;Debitoautomatico;1
+Academia;7;13;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
+Veroo Cafes;7;48;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
+YoutubePremium;7;27;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
+Clube Smiles;7;47;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
+Ingles;7;340;Pago;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;1
+Internet Mae;10;40;Pago;Mensal;Essencial;Dia fixo 10;Pix;1
+Internet Casa;21;13;Pago;Mensal;Essencial;Dia fixo 21;Debitoautomatico;1
+Condominio;25;880;Pago;Mensal;Essencial;Dia fixo 25;Pix;1
+Mercado;30;1200;Pago;Mensal;Essencial;Estimativa (fim do mês);Pix;1
+Ovos;30;90;Pago;Mensal;Essencial;Estimativa;Pix;1
+Carne;30;200;Pago;Mensal;Essencial;Estimativa;Pix;1
+Corte Cabelo;30;40;Pago;Mensal;Essencial;Dia fixo 30;Pix;1
+IPTU;30;150;Pago;Anual;Essencial;Vencimento em Janeiro;Pix;1

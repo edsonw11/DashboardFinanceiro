@@ -7,7 +7,7 @@ Academia;7;113;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cart
 Veroo Cafes;7;48;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;12
 YoutubePremium;7;27;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;12
 Clube Smiles;7;47;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;12
-Ingles;7;340;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;12
+Ingles;7;338;Pendente;Mensal;Não Essencial;Vencimento do Cartão (Dia 7);Cartao;12
 Internet Mae;10;40;Pendente;Mensal;Essencial;Dia fixo 10;Pix;12
 Internet Casa;21;113;Pendente;Mensal;Essencial;Dia fixo 21;Debitoautomatico;12
 Condominio;25;880;Pendente;Mensal;Essencial;Dia fixo 25;Pix;12
@@ -20,3 +20,4 @@ Corte Cabelo;30;40;Pendente;Mensal;Essencial;Dia fixo 30;Pix;12
 Almoço Sabado;30;100;Pendente;Anual;Não Essencial;Estimativa;Pix;12
 IPTU;30;150;Pendente;Anual;Essencial;Vencimento em Janeiro;Pix;12
 SharkEnglish;14;160;Pago;Mensal;Não Essencial;Dia fixo 14;Pix;12
+Uber;07;16;Pendente;Mensal;Não Essencial;Dia fixo 14;Pix;12

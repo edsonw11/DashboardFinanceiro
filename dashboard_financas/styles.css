@@ -471,8 +471,33 @@ h2 {
 }
 
 
-/* Adicione (ou ajuste) a altura para o contêiner do gráfico de evolução */
-#grafico-evolucao-mensal {
- /* Define uma altura FIXA. O valor deve ser a altura 'bacana' que você viu. */
- height: 380px; /* Altere este valor se 380px não for a altura desejada */
+/*
+ * Regra para o gráfico de Evolução Mensal
+ * Altere a altura (height) para o valor desejado (ex: 600px)
+ */
+ #grafico-evolucao-mensal {
+    height: 550px; /* 🚨 NOVO: Defina a altura desejada aqui */
+    width: 100%;  /* Garante que o gráfico ocupe a largura total do contêiner */
+}
+
+/* Estilização Base para todos os botões no seu dashboard */
+button {
+    cursor: pointer;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px; /* Cantos levemente arredondados */
+    font-size: 14px;
+    transition: background-color 0.3s ease;
+    margin-right: 8px;
+}
+
+/* Estilização Específica para a Classe 'btn-secondary' (Botões de Escala) */
+.btn-secondary {
+    background-color: #f0f0f0; /* Fundo cinza claro */
+    color: #333;               /* Texto escuro */
+    border: 1px solid #ccc;
+}
+
+.btn-secondary:hover {
+    background-color: #e0e0e0; /* Fundo mais escuro ao passar o mouse */
 }
