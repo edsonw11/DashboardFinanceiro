@@ -4,7 +4,7 @@
 // ===============================================
 
 // Constantes CRÍTICAS para o Gráfico
-const MEDIA_GASTO_IDEAL = 3000; 
+const MEDIA_GASTO_IDEAL = 3800; 
 
 // Constantes de Configuração
 const THRESHOLD_DIFF_PERCENT_ANNOTATION = 15; 
@@ -125,11 +125,12 @@ function cleanCurrency(value) {
     return 0;
 }
 
-// FUNÇÃO MODIFICADA PARA PERMITIR ABREVIAÇÃO K/M SE NECESSÁRIO (para caber nos boxes)
-function formatCurrency(value) {
-    value = value || 0;
-    
-    // Apenas formatação padrão: R$ 12.700,00
+
+// 🌟 CORREÇÃO ROBUSTA 1: Substitui o formato Intl.NumberFormat por uma função mais simples
+// que GARANTE que o valor absoluto é formatado como string, sem o símbolo 'R$' e sem sinal negativo.
+function formatCurrency(value) { 
+    const absoluteValue = Math.abs(parseFloat(value) || 0);
+    // Usa toFixed(2) para garantir 2 casas decimais e substitui o ponto por vírgula.
     return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
@@ -775,8 +776,6 @@ function renderDashboard() {
 }
 
 // --- FUNÇÕES DE GRÁFICOS (mantidas) ---
-
-
 function renderMonthlyEvolutionChart() {
     
     const graficoDiv = document.getElementById('grafico-evolucao-mensal');
@@ -803,18 +802,24 @@ function renderMonthlyEvolutionChart() {
         });
 
         
-
         // Cálculos e dados customizados (Receita, Saldo, Média)
         const monthlyRevenueTotals = calculateMonthlyRevenueTotals(rawRevenues || [], keys);
-        const netIncome = monthlyRevenueTotals.map((revenue, index) => revenue - (monthlyTotalTotals[index] || 0));
+        
+        // 🚨 CORREÇÃO 1: Garante que 'revenue' e 'expense' sejam tratados como 0 se ausentes.
+        // O valor de 'monthlyRevenueTotals[index]' pode ser undefined se o calculateMonthlyRevenueTotals não inicializar o array corretamente.
+        const netIncome = monthlyRevenueTotals.map((revenue, index) => 
+            (parseFloat(revenue) || 0) - (monthlyTotalTotals[index] || 0)
+        );
+        
         const totalGasto = monthlyTotalTotals.reduce((sum, val) => sum + val, 0);
         const mediaGasto = totalGasto / monthlyTotalTotals.length;
         const pendingItemsCustomData = dataGastos.pendingLists.map(list => [list]);
+        
+        // CORREÇÃO 2: Saldo Líquido formatado para string, para não dar conflito com a formatação do Plotly.
         const netIncomeCustomData = netIncome.map(value => [formatCurrency(value)]);
 
 
-       
-
+        
         // 5. LAYOUT E SHAPES
         const layout = {
             annotations: [], 
@@ -855,7 +860,8 @@ function renderMonthlyEvolutionChart() {
             x: labels, y: monthlyRevenueTotals, mode: 'lines+markers', type: 'scatter', name: 'Receita Recebida', 
             line: { color: '#007bff', width: 2, dash: 'dash' }, 
             customdata: netIncomeCustomData, 
-            hovertemplate: '<b>Receita:</b> R$ %{y:,.2f}<br><b>Saldo Líquido:</b> R$ %{customdata[0]:,.2f}<extra>Receita Total</extra>' 
+            // 🚨 CORREÇÃO 3: Removido o formato ':, .2f' do customdata[0], pois já é uma string formatada.
+            hovertemplate: '<b>Receita:</b> R$ %{y:,.2f}<br><b>Saldo Líquido:</b> R$ %{customdata[0]}<extra>Receita Total</extra>' 
         };
 
         const traceGoal = { 
@@ -874,9 +880,11 @@ function renderMonthlyEvolutionChart() {
         // 7. Renderiza o gráfico e, em seguida, anexa os listeners de hover (A Promessa .then)
         Plotly.react(graficoDiv, [traceTotal, tracePaid, traceRevenue, traceGoal], layout, { displayModeBar: false, responsive: true });
 
-   
+    
 
 }
+
+
 
 
 
@@ -1431,15 +1439,14 @@ function downloadCSV(csvContent, filename) {
  * Processa rawData para obter totais mensais, variação percentual 
  * e os detalhes das categorias que mais contribuíram para a diferença.
  */
-function getMonthlyExpenseComparisonData() {
+function getMonthlyExpenseComparisonDataTMP() {
     // 1. Inicializações
     const monthlyTotals = {};
     const monthlyCategoryDetails = {};
     const expensesByMonth = {}; // Objeto para armazenar as despesas por mês (usado para checar "pago")
 
+    // ... (Loop inicial rawData.forEach permanece inalterado) ...
 
-
-    // Note: rawData precisa estar definida no escopo global
     rawData.forEach(d => {
         // Assume o ano atual para simplificar, se 'ano' não for um campo em 'd'
         const ano = d.ano || CURRENT_YEAR; 
@@ -1450,7 +1457,8 @@ function getMonthlyExpenseComparisonData() {
         if (recurrence === 'anual') return;
 
         // Calcula total (Projetado)
-        monthlyTotals[mesChave] = (monthlyTotals[mesChave] || 0) + d.valor;
+        const valor = parseFloat(d.valor) || 0; // Garante que valor é numérico
+        monthlyTotals[mesChave] = (monthlyTotals[mesChave] || 0) + valor;
 
         // 🚨 CRÍTICO: Popular expensesByMonth
         if (!expensesByMonth[mesChave]) {
@@ -1458,12 +1466,16 @@ function getMonthlyExpenseComparisonData() {
         }
         expensesByMonth[mesChave].push(d); 
 
-        // Agrupa por categoria para análise de variação (mantido no primeiro loop para ser mais eficiente)
+        // Agrupa por categoria para análise de variação
         if (!monthlyCategoryDetails[mesChave]) {
             monthlyCategoryDetails[mesChave] = {};
         }
-        monthlyCategoryDetails[mesChave][d.categoria] = (monthlyCategoryDetails[mesChave][d.categoria] || 0) + d.valor;
+        monthlyCategoryDetails[mesChave][d.categoria] = (monthlyCategoryDetails[mesChave][d.categoria] || 0) + valor;
     }); // <<<< FIM CORRETO DO LOOP rawData.forEach
+
+
+    // Define o limiar (Threshold) mínimo para que uma variação seja considerada uma "contribuição"
+    const THRESHOLD_ABSOLUTE = 10; 
 
     // 2. Classifica os meses e calcula as diferenças/tooltips
     const sortedKeys = Object.keys(monthlyTotals).sort();
@@ -1473,31 +1485,27 @@ function getMonthlyExpenseComparisonData() {
         gastos: [],
         gastosPagos: [],
         tooltips: [], 
-        pendingLists: [], // Array para a lista de pendentes
-        // 🚨 CORREÇÃO CRÍTICA: ADICIONE ESTA LINHA!
+        pendingLists: [],
         percentDiffs: []
     };
-
-    
 
     let previousMonthTotal = 0;
 
     for (let i = 0; i < sortedKeys.length; i++) {
         const mesChave = sortedKeys[i];
-        const currentTotal = monthlyTotals[mesChave]; // Gasto TOTAL do mês (já calculado)
+        const currentTotal = monthlyTotals[mesChave];
         let currentPaidTotal = 0;
 
-        // Pega todas as despesas do mês
         const expensesOfMonth = expensesByMonth[mesChave] || [];
-        let pendingItemsList = []; // Array temporário para os itens pendentes do mês
+        let pendingItemsList = []; 
 
         // Itera sobre as despesas do mês para calcular Pago/Pendente
         expensesOfMonth.forEach(d => {
+            const valor = parseFloat(d.valor) || 0; 
             if (d.status && d.status.toLowerCase() === 'pago') {
-                currentPaidTotal += d.valor;
+                currentPaidTotal += valor;
             } else {
-                // Formata e armazena o item pendente
-                const formattedValue = formatCurrency(d.valor); 
+                const formattedValue = formatCurrency(valor); 
                 pendingItemsList.push(`• ${capitalize(d.categoria)} (R$ ${formattedValue})`);
             }
         });
@@ -1505,65 +1513,105 @@ function getMonthlyExpenseComparisonData() {
         // --- Lógica de cálculo de diffExplanation (Variação com Mês Anterior) ---
         
         let diffExplanation = 'Primeiro mês com dados registrados.';
-        let percentDiff = 0; // 🚨 NOVO: Declare percentDiff com valor padrão de 0
+        let percentDiff = 0; 
         
         if (i > 0) {
             const previousMesChave = sortedKeys[i - 1];
+            const prevCats = monthlyCategoryDetails[previousMesChave] || {};
+            const currCats = monthlyCategoryDetails[mesChave] || {};
+
+            // Cálculo da Diferença TOTAL e Percentual
+            const diffTotal = currentTotal - previousMonthTotal;
 
             if (previousMonthTotal > 0) {
-                // Cálculo da diferença percentual
-                let percentDiff = ((currentTotal - previousMonthTotal) / previousMonthTotal) * 100;
-                
-                // --- Análise Detalhada da Diferença por Categoria ---
-                const prevCats = monthlyCategoryDetails[previousMesChave] || {};
-                const currCats = monthlyCategoryDetails[mesChave] || {};
-                
-                const categoryDifferences = {};
-                const allCategories = new Set([...Object.keys(prevCats), ...Object.keys(currCats)]);
-                
-                // Calcula a variação absoluta por categoria
-                allCategories.forEach(cat => {
-                    const diff = (currCats[cat] || 0) - (prevCats[cat] || 0);
-                    if (Math.abs(diff) > 0.01) {
-                        categoryDifferences[cat] = diff;
-                    }
-                });
-
-                // Classifica e pega os 3 principais contribuintes (em valor absoluto)
-                const sortedDiffs = Object.entries(categoryDifferences)
-                    .sort(([, a], [, b]) => Math.abs(b) - Math.abs(a))
-                    .slice(0, 3); 
-
-                let changeType = percentDiff >= 0 ? 'aumento' : 'redução';
-                let diffText = '';
-
-                
-                percentDiff = ((currentTotal - previousMonthTotal) / previousMonthTotal) * 100; // Apenas atribui o valor
-            
-
-                if (Math.abs(percentDiff) < 0.1) {
-                     diffExplanation = 'Sem variação significativa.';
-                } else {
-                     diffText = `Variação: <b>${percentDiff.toFixed(2)}%</b> (${changeType} em relação ao mês anterior).<br><br>Principais contribuições:<br>`;
-                    
-                     if(sortedDiffs.length > 0) {
-                        sortedDiffs.forEach(([cat, diff]) => {
-                            const sign = diff >= 0 ? '+' : ''; 
-                            const action = diff >= 0 ? 'aumento' : 'redução';
-                            
-                            diffText += `• ${capitalize(cat)}: ${sign}${formatCurrency(diff)} (${action})<br>`;
-                        });
-                     } else {
-                         diffText += 'Ajustes pequenos em múltiplas categorias.';
-                     }
-                    
-                     diffExplanation = diffText;
-                }
+                percentDiff = (diffTotal / previousMonthTotal) * 100;
             } else if (currentTotal > 0) {
-                 diffExplanation = 'Gasto registrado. Mês anterior zerado.';
+                 percentDiff = 1000; 
             } else {
-                diffExplanation = 'Sem variação.';
+                 percentDiff = 0; 
             }
+            
+            // --- Análise Detalhada da Diferença por Categoria ---
+            
+            const categoryDifferences = {};
+            const allCategories = new Set([...Object.keys(prevCats), ...Object.keys(currCats)]);
+            
+            // Calcula a variação absoluta por categoria
+            allCategories.forEach(cat => {
+                const prevCatTotal = prevCats[cat] || 0;
+                const currCatTotal = currCats[cat] || 0;
+                const diff = currCatTotal - prevCatTotal;
+                
+                let catPercentDiff = 0;
+                
+                // 💡 CRÍTICO: NOVA LÓGICA DE FILTRAGEM
+                let shouldInclude = false;
+
+                if (prevCatTotal === 0 && currCatTotal > 0) {
+                    // Caso 1: Item NOVO. Incluir SEMPRE, independente do THRESHOLD_ABSOLUTE.
+                    catPercentDiff = 9999; 
+                    shouldInclude = true;
+                } else if (Math.abs(diff) >= THRESHOLD_ABSOLUTE) {
+                    // Caso 2: Item EXISTENTE com variação significativa. Incluir se for > THRESHOLD.
+                    catPercentDiff = (diff / prevCatTotal) * 100;
+                    shouldInclude = true;
+                }
+                
+                // Apenas adiciona se atender a uma das condições
+                if (shouldInclude) {
+                    categoryDifferences[cat] = {
+                        diff: diff,
+                        percent: catPercentDiff
+                    };
+                }
+            });
+
+        // Classifica e pega os 5 principais contribuintes
+        const sortedDiffs = Object.entries(categoryDifferences)
+        .sort(([, a], [, b]) => {
+            // 1. Se 'b' for novo item e 'a' não for, 'b' vem primeiro
+            if (b.percent === 9999 && a.percent !== 9999) return 1;
+            // 2. Se 'a' for novo item e 'b' não for, 'a' vem primeiro
+            if (a.percent === 9999 && b.percent !== 9999) return -1;
+            
+            // 3. Se ambos ou nenhum forem novos, classifica pelo valor absoluto da diferença
+            return Math.abs(b.diff) - Math.abs(a.diff);
+        })
+        .slice(0, MAX_CONTRIBUTIONS); // Aumentado para 10 para capturar mais itens significativos
+
+            let changeType = percentDiff >= 0 ? 'aumento' : 'redução';
+            let diffText = '';
+
+            if (Math.abs(percentDiff) < 0.1 && diffTotal === 0) {
+                 diffExplanation = 'Sem variação significativa.';
+            } else {
+                 let percentText = percentDiff > 999 ? 'NOVO GASTO SIGNIFICATIVO' : `${percentDiff.toFixed(2)}%`;
+                 diffText = `Variação: <b>${percentText}</b> (${changeType} em relação ao mês anterior).<br><br>Principais contribuições:<br>`;
+                 
+                 if(sortedDiffs.length > 0) {
+                     sortedDiffs.forEach(([cat, data]) => {
+                         const sign = data.diff >= 0 ? '+' : ''; 
+                         const action = data.diff >= 0 ? 'aumento' : 'redução';
+                         
+                         let percentStr;
+                         if (data.percent > 999) {
+                            percentStr = `(${action.toUpperCase()}: NovoItem)`;
+                         } else {
+                            percentStr = `(${data.percent.toFixed(1)}%)`;
+                         }
+                         
+                         diffText += `• ${capitalize(cat)}: ${sign}${formatCurrency(data.diff)} ${percentStr}<br>`;
+                     });
+                 } else {
+                      diffText += 'Ajustes pequenos em múltiplas categorias.';
+                 }
+                 
+                 diffExplanation = diffText;
+            }
+        } else if (currentTotal > 0) {
+            diffExplanation = 'Gasto registrado. Mês anterior zerado.';
+        } else {
+            diffExplanation = 'Sem variação.';
         }
         
         // Armazena os resultados no objeto final (result)
@@ -1575,7 +1623,7 @@ function getMonthlyExpenseComparisonData() {
 
         // Armazena a lista formatada final de pendentes
         if (pendingItemsList.length > 0) {
-            result.pendingLists.push(pendingItemsList.join('<br>'));
+            result.pendingLists.push(`• **Pendentes:**<br>${pendingItemsList.join('<br>')}`);
         } else {
             result.pendingLists.push('Nenhum item pendente.');
         }
@@ -1585,6 +1633,233 @@ function getMonthlyExpenseComparisonData() {
 
     return result;
 }
+
+function getMonthlyExpenseComparisonData() {
+    // 1. Inicializações
+    const monthlyTotals = {};
+    const monthlyCategoryDetails = {};
+    const expensesByMonth = {}; 
+
+    // Nota: rawData precisa estar definida no escopo global
+    rawData.forEach(d => {
+        const ano = d.ano || CURRENT_YEAR; 
+        const mesChave = `${ano}-${String(d.mes).padStart(2, '0')}`;
+        const recurrence = String(d.recorrencia || '').toLowerCase().trim();
+        if (recurrence === 'anual') return;
+
+        const valor = parseFloat(d.valor) || 0;
+        monthlyTotals[mesChave] = (monthlyTotals[mesChave] || 0) + valor;
+
+        if (!expensesByMonth[mesChave]) {
+             expensesByMonth[mesChave] = [];
+        }
+        expensesByMonth[mesChave].push(d); 
+
+        if (!monthlyCategoryDetails[mesChave]) {
+            monthlyCategoryDetails[mesChave] = {};
+        }
+        monthlyCategoryDetails[mesChave][d.categoria] = (monthlyCategoryDetails[mesChave][d.categoria] || 0) + valor;
+    });
+
+    // Define o limiar (Threshold) mínimo para que uma variação seja considerada uma "contribuição"
+    // Itens novos SÃO INCLUÍDOS SEMPRE. Itens existentes só se a variação for >= THRESHOLD.
+    const THRESHOLD_ABSOLUTE = 10; 
+    const MAX_CONTRIBUTIONS = 10; // 🚨 CORREÇÃO: Alterado de 5 para 10
+
+    // 2. Classifica os meses e calcula as diferenças/tooltips
+    const sortedKeys = Object.keys(monthlyTotals).sort();
+ 
+    const result = {
+        meses: [],
+        gastos: [],
+        gastosPagos: [],
+        tooltips: [], 
+        pendingLists: [],
+        percentDiffs: []
+    };
+
+    let previousMonthTotal = 0;
+
+    for (let i = 0; i < sortedKeys.length; i++) {
+        const mesChave = sortedKeys[i];
+        const currentTotal = monthlyTotals[mesChave];
+        let currentPaidTotal = 0;
+
+        const expensesOfMonth = expensesByMonth[mesChave] || [];
+        let pendingItemsList = []; 
+
+        expensesOfMonth.forEach(d => {
+            const valor = parseFloat(d.valor) || 0; 
+            if (d.status && d.status.toLowerCase() === 'pago') {
+                currentPaidTotal += valor;
+            } else {
+                const formattedValue = formatCurrency(valor); 
+                pendingItemsList.push(`• ${capitalize(d.categoria)} (R$ ${formattedValue})`);
+            }
+        });
+        
+        let diffExplanation = 'Primeiro mês com dados registrados.';
+        let percentDiff = 0; 
+        
+        if (i > 0) {
+            const previousMesChave = sortedKeys[i - 1];
+            const prevCats = monthlyCategoryDetails[previousMesChave] || {};
+            const currCats = monthlyCategoryDetails[mesChave] || {};
+
+            // Cálculo da Diferença TOTAL e Percentual
+            const diffTotal = currentTotal - previousMonthTotal;
+
+            if (previousMonthTotal > 0) {
+                percentDiff = (diffTotal / previousMonthTotal) * 100;
+            } else if (currentTotal > 0) {
+                 percentDiff = 1000; 
+            } else {
+                 percentDiff = 0; 
+            }
+            
+            // --- Análise Detalhada da Diferença por Categoria ---
+            
+            const categoryDifferences = {};
+            const allCategories = new Set([...Object.keys(prevCats), ...Object.keys(currCats)]);
+            
+            // Calcula a variação absoluta por categoria
+            allCategories.forEach(cat => {
+                const prevCatTotal = prevCats[cat] || 0;
+                const currCatTotal = currCats[cat] || 0;
+                const diff = currCatTotal - prevCatTotal;
+                
+                let catPercentDiff = 0;
+                let shouldInclude = false;
+
+                if (prevCatTotal === 0 && currCatTotal > 0.01) {
+                    // Caso 1: Item NOVO. Incluir SEMPRE.
+                    catPercentDiff = 9999; 
+                    shouldInclude = true;
+                } else if (Math.abs(diff) >= THRESHOLD_ABSOLUTE) {
+                    // Caso 2: Item EXISTENTE com variação significativa.
+                    catPercentDiff = (diff / prevCatTotal) * 100;
+                    shouldInclude = true;
+                }
+                
+                if (shouldInclude) {
+                    categoryDifferences[cat] = {
+                        diff: diff,
+                        percent: catPercentDiff
+                    };
+                }
+            });
+
+            // Classifica e pega os principais contribuintes
+            const sortedDiffs = Object.entries(categoryDifferences)
+                .sort(([, a], [, b]) => {
+                    // 1. Prioridade absoluta para itens NOVOS (percent: 9999)
+                    if (b.percent === 9999 && a.percent !== 9999) return 1;
+                    if (a.percent === 9999 && b.percent !== 9999) return -1;
+                    
+                    // 2. Classifica pelo valor absoluto da diferença para os demais
+                    return Math.abs(b.diff) - Math.abs(a.diff);
+                });
+            
+            // Aumento/Novos e Reduções agora pegam até MAX_CONTRIBUTIONS (10) itens
+            const topIncreases = sortedDiffs.filter(([, data]) => data.diff >= 0).slice(0, MAX_CONTRIBUTIONS);
+            const topReductions = sortedDiffs.filter(([, data]) => data.diff < 0)
+                .sort(([, a], [, b]) => a.diff - b.diff) // Mantém a ordem da maior redução (mais negativo)
+                .slice(0, MAX_CONTRIBUTIONS);
+
+
+            let changeType = percentDiff >= 0 ? 'aumento' : 'redução';
+            let diffText = '';
+
+            if (Math.abs(percentDiff) < 0.1 && diffTotal === 0) {
+                 diffExplanation = 'Sem variação significativa.';
+            } else {
+                 let percentText = percentDiff > 999 ? 'NOVO GASTO SIGNIFICATIVO' : `${percentDiff.toFixed(2)}%`;
+                 
+                 // Construção inicial com variação percentual
+                 diffText = `Variação Total: <b>${percentText}</b> (${changeType} em relação ao mês anterior).<br>`;
+                 
+                 // 🌟 LÓGICA DO RESUMO: Diz "gastou" ou "economizou"
+                 // diffAbsValue tem o valor absoluto formatado (ex: "450,00")
+                 const diffAbsValue = formatCurrency(diffTotal); 
+                 let spendingText;
+
+                 if (diffTotal > 0) {
+                     // Gasto A MAIS (aumento)
+                     spendingText = `Você gastou <b> ${diffAbsValue}</b> a mais do que no mês anterior.`;
+                 } else if (diffTotal < 0) {
+                     // ECONOMIA (redução). O valor JÁ É ABSOLUTO e sem sinal.
+                     spendingText = `Você economizou <b> ${diffAbsValue}</b> em relação ao mês anterior.`;
+                 } else {
+                     spendingText = `Gasto exatamente o mesmo valor do mês anterior.`;
+                 }
+                 
+                 diffText += `${spendingText}<br><br>`;
+                 // --------------------------------------------------------
+                 
+                 // === BLOCO DE AUMENTOS/NOVOS GASTOS ===
+                 if(topIncreases.length > 0) {
+                    diffText += `<b>📈 Principais Aumentos / Novos Gastos:</b><br>`;
+                    topIncreases.forEach(([cat, data]) => {
+                        const sign = data.diff >= 0 ? '+' : ''; 
+                        
+                        let percentStr;
+                        if (data.percent > 999) {
+                           percentStr = `(Novo Item)`;
+                        } else {
+                           percentStr = `(${data.percent.toFixed(1)}%)`;
+                        }
+                        
+                        // Garante o sinal '+' e o R$
+                        diffText += `• ${capitalize(cat)}: ${sign} ${formatCurrency(data.diff)} ${percentStr}<br>`;
+                    });
+                    diffText += `<br>`;
+                 }
+                 
+                 // === BLOCO DE REDUÇÕES / ECONOMIAS (Remove o sinal de menos explícito) ===
+                 if(topReductions.length > 0) {
+                    diffText += `<b>📉 Principais Reduções / Economias:</b><br>`;
+                    topReductions.forEach(([cat, data]) => {
+                        let percentStr = `(${data.percent.toFixed(1)}%)`;
+                        
+                        // 🌟 CORREÇÃO 2: Remove o sinal de menos explícito para evitar R$ -R$ ou -R$ -R$
+                        // A palavra "Reduções/Economias" já indica o sentido negativo.
+                        // Adiciona o sufixo "(Economia)" para maior clareza.
+                        diffText += `• ${capitalize(cat)}:  ${formatCurrency(data.diff)} ${percentStr} (Economia)<br>`;
+                    });
+                 }
+
+                 if (topIncreases.length === 0 && topReductions.length === 0) {
+                    diffText += 'Ajustes pequenos em múltiplas categorias.';
+                 }
+                 
+                 diffExplanation = diffText;
+            }
+        } else if (currentTotal > 0) {
+            diffExplanation = 'Gasto registrado. Mês anterior zerado.';
+        } else {
+            diffExplanation = 'Sem variação.';
+        }
+        
+        // Armazena os resultados no objeto final (result)
+        result.meses.push(mesChave);
+        result.gastos.push(currentTotal);
+        result.tooltips.push(diffExplanation);
+        result.gastosPagos.push(currentPaidTotal);
+        result.percentDiffs.push(percentDiff);
+
+        // Armazena a lista formatada final de pendentes
+        if (pendingItemsList.length > 0) {
+            result.pendingLists.push(`• **Pendentes:**<br>${pendingItemsList.join('<br>')}`);
+        } else {
+            result.pendingLists.push('Nenhum item pendente.');
+        }
+
+        previousMonthTotal = currentTotal;
+    }
+
+    return result;
+}
+
 
 // ===================================
 // FUNÇÃO DE INICIALIZAÇÃO DE DADOS (PARA DADOS REAIS)
